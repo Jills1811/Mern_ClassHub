@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import { CssBaseline, Box } from '@mui/material';
@@ -19,7 +19,6 @@ import AssignmentDetail from './pages/Assignment/AssignmentDetail';
 import CreateAssignment from './pages/Assignment/CreateAssignment';
 import Assignments from './pages/Dashboard/Assignments';
 import People from './pages/Dashboard/People';
-import Calendar from './pages/Dashboard/Calendar';
 import Settings from './pages/Dashboard/Settings';
 
 function App() {
@@ -67,7 +66,7 @@ function AuthenticatedContent() {
           transition: 'width 0.2s ease-in-out'
         }} 
       />
-      <Box component="main" sx={{ flexGrow: 1, p: 3, mt: '64px' }}>
+      <Box component="main" sx={{ flexGrow: 1, p: 0, mt: '64px' }}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -95,14 +94,7 @@ function AuthenticatedContent() {
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/calendar" 
-            element={
-              <ProtectedRoute>
-                <Calendar />
-              </ProtectedRoute>
-            } 
-          />
+          {/* Calendar route removed */}
           <Route 
             path="/settings" 
             element={

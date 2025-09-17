@@ -21,7 +21,9 @@ import {
   DialogActions,
   ListItemIcon,
   ListItemText,
-  TextField
+  TextField,
+  alpha,
+  useTheme
 } from '@mui/material';
 import { 
   Add as AddIcon,
@@ -31,7 +33,9 @@ import {
   Class as ClassIcon,
   Edit as EditIcon,
   ExitToApp as ExitToAppIcon,
-  GroupAdd as GroupAddIcon
+  GroupAdd as GroupAddIcon,
+  Group as GroupIcon,
+  Assignment as AssignmentIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -59,6 +63,7 @@ const headerIcons = [
 
 const Dashboard = () => {
   const { user, isAuthenticated } = useAuth();
+  const theme = useTheme();
   const navigate = useNavigate();
   const [classrooms, setClassrooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -301,18 +306,37 @@ const Dashboard = () => {
   }
 
   return (
-    <Box>
+    <Box
+      sx={{
+        minHeight: 'calc(100vh - 64px)',
+        background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.06)}, ${alpha(theme.palette.secondary?.main || '#9C27B0', 0.06)})`,
+        borderRadius: 0,
+      }}
+    >
+      <Box sx={{ maxWidth: 1400, mx: 'auto', px: { xs: 2, sm: 3, md: 4 }, pt: 3, pb: 6 }}>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 500 }}>
-          {user?.role === 'teacher' ? 'My Classes' : 'My Enrolled Classes'}
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          {user?.role === 'teacher' 
-            ? 'Manage your classrooms and assignments'
-            : 'Access your enrolled courses and assignments'
-          }
-        </Typography>
+      <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+        <Box>
+          <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>
+            {user?.role === 'teacher' ? 'My Classes' : 'My Enrolled Classes'}
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            {user?.role === 'teacher' 
+              ? 'Manage your classrooms and assignments'
+              : 'Access your enrolled courses and assignments'
+            }
+          </Typography>
+        </Box>
+        {user?.role === 'teacher' && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleCreateClassroom}
+            sx={{ borderRadius: 2, textTransform: 'none', px: 3, py: 1 }}
+          >
+            New Class
+          </Button>
+        )}
       </Box>
 
       {/* Create Classroom Button for Teachers */}
@@ -341,12 +365,7 @@ const Dashboard = () => {
             variant="outlined"
             startIcon={<GroupAddIcon />}
             onClick={handleJoinClassroom}
-            sx={{ 
-              borderRadius: 2,
-              textTransform: 'none',
-              px: 3,
-              py: 1
-            }}
+            sx={{ borderRadius: 2, textTransform: 'none', px: 3, py: 1 }}
           >
             Join Classroom
           </Button>
@@ -356,16 +375,16 @@ const Dashboard = () => {
              {/* Classrooms Grid */}
        <Grid container spacing={3}>
          {classrooms.map((classroom, index) => (
-           <Grid item xs={12} sm={6} md={4} lg={3} xl={2} key={classroom._id}>
-             <Card 
-               elevation={2}
-               sx={{ 
-                 width: 230,
-                 height: 230,
+          <Grid item xs={12} sm={6} md={6} lg={4} xl={3} key={classroom._id}>
+            <Card 
+              elevation={0}
+              sx={{ 
+                width: 320,
+                height: 280,
                  cursor: 'pointer',
                  transition: 'all 0.3s ease',
+                boxShadow: 'none',
                  '&:hover': {
-                   elevation: 8,
                    transform: 'translateY(-4px)',
                    boxShadow: '0 8px 25px rgba(0,0,0,0.15)'
                  }
@@ -373,13 +392,13 @@ const Dashboard = () => {
                onClick={() => handleCardClick(classroom._id)}
              >
                              {/* Header */}
-               <Box
-                 sx={{
-                   height: 100,
+              <Box
+                sx={{
+                  height: 140,
                    background: `linear-gradient(135deg, ${getHeaderColor(index)} 0%, ${getHeaderColor(index)}dd 100%)`,
                    color: 'white',
                    position: 'relative',
-                   p: 2,
+                  p: 2.5,
                    display: 'flex',
                    flexDirection: 'column',
                    justifyContent: 'space-between'
@@ -409,11 +428,11 @@ const Dashboard = () => {
                  </Box>
 
                 {/* Teacher Avatar */}
-                <Box sx={{ position: 'absolute', bottom: -20, right: 16 }}>
+                <Box sx={{ position: 'absolute', bottom: -26, right: 16 }}>
                   <Avatar
                     sx={{
-                      width: 48,
-                      height: 48,
+                      width: 56,
+                      height: 56,
                       border: '3px solid white',
                       boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
                       bgcolor: getHeaderColor(index)
@@ -458,12 +477,14 @@ const Dashboard = () => {
                 {/* Stats */}
                 <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
                   <Chip 
+                    icon={<GroupIcon />}
                     label={`${classroom.students?.length || 0} students`}
                     size="small"
                     variant="outlined"
                     color="primary"
                   />
                   <Chip 
+                    icon={<AssignmentIcon />}
                     label={`${classroom.assignments?.length || 0} assignments`}
                     size="small"
                     variant="outlined"
@@ -497,11 +518,12 @@ const Dashboard = () => {
         {classrooms.length === 0 && (
           <Grid item xs={12}>
             <Paper 
-              elevation={1} 
+              elevation={0} 
               sx={{ 
                 p: 6, 
                 textAlign: 'center',
-                borderRadius: 2
+                borderRadius: 2,
+                boxShadow: 'none'
               }}
             >
               <SchoolIcon sx={{ fontSize: 80, color: 'text.secondary', mb: 2 }} />
@@ -658,7 +680,8 @@ const Dashboard = () => {
             <Button onClick={handleJoinClassroomSubmit} variant="contained">Join</Button>
           </DialogActions>
         </Dialog>
-     </Box>
+      </Box>
+    </Box>
    );
  };
 

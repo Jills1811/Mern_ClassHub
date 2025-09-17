@@ -23,7 +23,6 @@ import {
 import {
   Menu as MenuIcon,
   Home as HomeIcon,
-  CalendarMonth as CalendarIcon,
   School as SchoolIcon,
   Settings as SettingsIcon,
   LightMode as LightModeIcon,
@@ -31,8 +30,7 @@ import {
   Logout as LogoutIcon,
   ExpandLess as ExpandLessIcon,
   ExpandMore as ExpandMoreIcon,
-  NavigateNext as NavigateNextIcon,
-  Add as AddIcon
+  NavigateNext as NavigateNextIcon
 } from '@mui/icons-material';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -194,7 +192,6 @@ const Navbar = () => {
 
   const navigationItems = [
     { text: 'Home', icon: <HomeIcon />, path: '/dashboard' },
-    { text: 'Calendar', icon: <CalendarIcon />, path: '/calendar' },
     { text: 'Settings', icon: <SettingsIcon />, path: '/settings' }
   ];
 
@@ -351,9 +348,11 @@ const Navbar = () => {
     <>
       <AppBar
         position="fixed"
+        elevation={0}
         sx={{
           width: { sm: isAuthenticated ? `calc(100% - ${currentDrawerWidth}px)` : '100%' },
           ml: { sm: isAuthenticated ? `${currentDrawerWidth}px` : 0 },
+          boxShadow: 'none',
         }}
       >
       <Toolbar>
