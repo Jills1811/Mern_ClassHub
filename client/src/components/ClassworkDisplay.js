@@ -321,6 +321,8 @@ const ClassworkDisplay = ({ classroomId, userRole, onContentUpdated }) => {
   const renderContentItem = (item, index) => {
     const isAssignment = item.itemType === 'assignment';
     const isMaterial = item.itemType === 'material';
+    // const rawBase = (API?.defaults?.baseURL || 'http://localhost:5000/api');
+    // const apiBase = rawBase.replace(/\/?api\/?$/, '');
     
     return (
       <React.Fragment key={`${item.itemType}-${item._id}`}>
@@ -379,6 +381,7 @@ const ClassworkDisplay = ({ classroomId, userRole, onContentUpdated }) => {
                   <Typography variant="body2" color="text.secondary">
                     Created: {formatDate(item.createdAt, 'MMM dd, yyyy')}
                   </Typography>
+                  
                 </Box>
               )}
 
@@ -402,6 +405,9 @@ const ClassworkDisplay = ({ classroomId, userRole, onContentUpdated }) => {
                   )}
                 </Box>
               )}
+
+              {/* Assignment attachments preview */}
+              
 
               {/* Children under Title */}
               {item.__isTitleOnly && (

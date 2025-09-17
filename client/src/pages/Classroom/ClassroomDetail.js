@@ -24,7 +24,8 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
-    TextField
+    TextField,
+    useTheme
 } from '@mui/material';
 import {
     ContentCopy as CopyIcon,
@@ -35,6 +36,7 @@ import {
     Announcement as AnnouncementIcon
 } from '@mui/icons-material';
 import API from '../../utils/Api';
+import { format } from 'date-fns';
 import { toast } from 'react-toastify';
 import ClassworkDisplay from '../../components/ClassworkDisplay';
 
@@ -55,6 +57,7 @@ function TabPanel({ children, value, index, ...other }) {
 
 const ClassroomDetail = () => {
     const { id } = useParams();
+    const theme = useTheme();
     const { user } = useAuth();
     const navigate = useNavigate();
     const [classroom, setClassroom] = useState(null);
@@ -229,7 +232,7 @@ const ClassroomDetail = () => {
     return (
         <Box>
             {/* Classroom Header */}
-            <Paper elevation={1} sx={{ p: 3, mb: 3, bgcolor: 'primary.main', color: 'white' }}>
+            <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: theme.palette.mode === 'light' ? 'primary.main' : 'primary.main', color: 'primary.contrastText', boxShadow: 'none' }}>
                 <Grid container spacing={3} alignItems="flex-start">
                     <Grid item xs={12} md={7}>
                         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
@@ -360,13 +363,13 @@ const ClassroomDetail = () => {
                             <List>
                                 {classroom.announcements.map((announcement, index) => (
                                     <React.Fragment key={announcement._id || index}>
-                                        <Paper sx={{ p: 2, mb: 2, bgcolor: '#1f1f1f', border: '1px solid rgba(255,255,255,0.12)', color: 'white' }}>
+                                        <Paper sx={{ p: 2, mb: 2, bgcolor: theme.palette.mode === 'light' ? 'grey.50' : '#1f1f1f', border: theme.palette.mode === 'light' ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.12)', color: 'text.primary' }}>
                                             <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
                                                 <Avatar sx={{ bgcolor: 'primary.main', mt: 0.5 }}>
                                                     <AnnouncementIcon />
                                                 </Avatar>
                                                 <Box sx={{ flex: 1 }}>
-                                                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: 'white' }}>
+                                                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
                                                         {announcement.title}
                                                     </Typography>
                                                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -388,7 +391,7 @@ const ClassroomDetail = () => {
                                 ))}
                             </List>
                         ) : (
-                            <Paper sx={{ p: 3, textAlign: 'center', bgcolor: '#1f1f1f', border: '1px solid rgba(255,255,255,0.12)', color: 'white' }}>
+                            <Paper sx={{ p: 3, textAlign: 'center', bgcolor: theme.palette.mode === 'light' ? 'grey.50' : '#1f1f1f', border: theme.palette.mode === 'light' ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.12)' }}>
                                 <AnnouncementIcon sx={{ fontSize: 60, color: 'grey.500', mb: 2 }} />
                                 <Typography variant="h6" color="text.secondary" gutterBottom>
                                     No announcements yet
@@ -428,12 +431,12 @@ const ClassroomDetail = () => {
                                                 mb: 2, 
                                                 cursor: 'pointer',
                                                 transition: 'all 0.2s ease-in-out',
-                                                bgcolor: '#1f1f1f',
-                                                border: '1px solid rgba(255,255,255,0.12)',
+                                        bgcolor: theme.palette.mode === 'light' ? 'grey.50' : '#1f1f1f',
+                                        border: theme.palette.mode === 'light' ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.12)',
                                                 '&:hover': {
                                                     transform: 'translateY(-2px)',
                                                     boxShadow: 3,
-                                                    backgroundColor: 'rgba(255,255,255,0.06)'
+                                                    backgroundColor: theme.palette.mode === 'light' ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)'
                                                 }
                                             }}
                                             onClick={() => navigate(`/assignment/${assignment._id}`)}
@@ -443,9 +446,31 @@ const ClassroomDetail = () => {
                                                     <AssignmentIcon />
                                                 </Avatar>
                                                 <Box sx={{ flex: 1 }}>
-                                                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: 'white' }}>
-                                                        {assignment.title}
-                                                    </Typography>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+                                                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                                                            {assignment.title}
+                                                        </Typography>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                            <Typography variant="body2" color="text.secondary">
+                                                                {assignment?.dueDate ? `Due ${format(new Date(assignment.dueDate), 'MMM d')}` : 'No due date'}
+                                                            </Typography>
+                                                            {user?.role === 'student' && (
+                                                                (() => {
+                                                                    const studentId = user?._id;
+                                                                    const mySubmission = assignment?.submissions?.find((s) => {
+                                                                        const sid = s.student?._id || s.student;
+                                                                        return sid && sid.toString() === studentId;
+                                                                    });
+                                                                    const showAssigned = assignment?.collectSubmissions;
+                                                                    return mySubmission ? (
+                                                                        <Chip label="Turned in" color="success" size="small" />
+                                                                    ) : showAssigned ? (
+                                                                        <Chip label="Assigned" color="warning" size="small" />
+                                                                    ) : null;
+                                                                })()
+                                                            )}
+                                                        </Box>
+                                                    </Box>
                                                     {assignment.description && (
                                                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                                                             {assignment.description}

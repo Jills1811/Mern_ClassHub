@@ -23,7 +23,8 @@ import {
   Link,
   Menu,
   MenuItem,
-  ListItemIcon
+  ListItemIcon,
+  useTheme
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -54,6 +55,7 @@ const AssignmentDetail = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const theme = useTheme();
   const [assignment, setAssignment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -350,19 +352,16 @@ const AssignmentDetail = () => {
 
   return (
     <Box sx={{ 
-      minHeight: '100vh', 
-      backgroundColor: '#1a1a1a', 
-      color: 'white' 
+      minHeight: '100vh',
+      bgcolor: theme.palette.mode === 'light' ? 'background.default' : '#1a1a1a',
+      color: 'text.primary'
     }}>
       <Box sx={{ maxWidth: 1200, margin: '0 auto', p: 3 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
-        <IconButton onClick={() => navigate(-1)} sx={{ mr: 2, color: 'white' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <IconButton onClick={() => navigate(-1)} sx={{ mr: 1 }}>
           <ArrowBackIcon />
         </IconButton>
-        <Typography variant="h4" sx={{ fontWeight: 600, color: 'white' }}>
-          {assignment.title}
-            </Typography>
       </Box>
 
       <Grid container spacing={4}>
@@ -376,7 +375,7 @@ const AssignmentDetail = () => {
                   <AssignmentIcon />
               </Avatar>
                 <Box>
-                  <Typography variant="h4" sx={{ fontWeight: 600, mb: 1, color: 'white' }}>
+                  <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
                     {assignment.title}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
@@ -388,7 +387,7 @@ const AssignmentDetail = () => {
                 {user.role === 'teacher' && (
                   <IconButton 
                     size="small" 
-                    sx={{ mb: 1, color: 'white' }}
+                    sx={{ mb: 1 }}
                     onClick={handleMenuOpen}
                   >
                     <MoreVertIcon />
@@ -402,7 +401,7 @@ const AssignmentDetail = () => {
 
             {/* Assignment Description */}
             {assignment.description && (
-              <Typography variant="body1" sx={{ lineHeight: 1.6, mb: 4, fontSize: '1rem', color: 'white' }}>
+              <Typography variant="body1" sx={{ lineHeight: 1.6, mb: 4, fontSize: '1rem' }}>
                 {assignment.description}
               </Typography>
             )}
@@ -418,7 +417,8 @@ const AssignmentDetail = () => {
                     alignItems: 'center', 
                     gap: 2, 
                     p: 2, 
-                    border: '1px solid #e0e0e0', 
+                    border: '1px solid',
+                    borderColor: 'divider',
                     borderRadius: 1,
                     mb: 2 
                   }}>
@@ -429,10 +429,10 @@ const AssignmentDetail = () => {
                         sx={{ 
                           fontWeight: 500, 
                           textDecoration: 'underline', 
-                          color: 'white',
+                          color: 'text.primary',
                           cursor: 'pointer',
                           '&:hover': {
-                            color: '#1976d2'
+                            color: 'primary.main'
                           }
                         }}
                         onClick={() => handleDownloadAttachment(attachment)}
@@ -447,7 +447,7 @@ const AssignmentDetail = () => {
                       size="small"
                       startIcon={<DownloadIcon />}
                       onClick={() => handleDownloadAttachment(attachment)}
-                      sx={{ color: 'white', borderColor: '#e0e0e0' }}
+                      sx={{ borderColor: 'divider' }}
                       variant="outlined"
                     >
                       View
@@ -462,7 +462,7 @@ const AssignmentDetail = () => {
                       <Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                 <CommentIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
-                <Typography variant="h6" sx={{ fontWeight: 500, color: 'white' }}>
+                <Typography variant="h6" sx={{ fontWeight: 500 }}>
                   Class comments
                         </Typography>
                       </Box>
@@ -511,12 +511,13 @@ const AssignmentDetail = () => {
             <Box sx={{ 
               p: 3, 
               mb: 3, 
-              border: '1px solid #e0e0e0', 
+              border: '1px solid',
+              borderColor: 'divider',
               borderRadius: 2,
               boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
             }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, color: 'white' }}>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Your work
                 </Typography>
                 <Typography variant="body2" color="success.main" sx={{ fontWeight: 500 }}>
@@ -532,7 +533,7 @@ const AssignmentDetail = () => {
                     </Typography>
                     {Array.isArray(submission?.attachments) && submission.attachments.length > 0 && (
                       <Box sx={{ mb: 2 }}>
-                        <Typography variant="body2" gutterBottom color="white" sx={{ mb: 1 }}>
+                        <Typography variant="body2" gutterBottom sx={{ mb: 1 }}>
                           Your submitted files:
                         </Typography>
                         {submission.attachments.map((attachment, index) => (
@@ -547,15 +548,15 @@ const AssignmentDetail = () => {
                           }}>
                             <AttachFileIcon sx={{ color: 'text.secondary' }} />
                             <Box sx={{ flex: 1 }}>
-                              <Typography 
+                          <Typography 
                                 variant="body1" 
                                 sx={{ 
                                   fontWeight: 500, 
                                   textDecoration: 'underline', 
-                                  color: 'white',
+                              color: 'text.primary',
                                   cursor: 'pointer',
                                   '&:hover': {
-                                    color: '#1976d2'
+                                color: 'primary.main'
                                   }
                                 }}
                                 onClick={() => handleDownloadAttachment(attachment)}
@@ -570,7 +571,7 @@ const AssignmentDetail = () => {
                               size="small"
                               startIcon={<DownloadIcon />}
                               onClick={() => handleDownloadAttachment(attachment)}
-                              sx={{ color: 'white', borderColor: '#e0e0e0' }}
+                              sx={{ borderColor: 'divider' }}
                             variant="outlined"
                           >
                               View
@@ -611,7 +612,7 @@ const AssignmentDetail = () => {
 
                     {attachments.length > 0 && (
                       <Box sx={{ mb: 2 }}>
-                        <Typography variant="body2" gutterBottom color="white">
+                        <Typography variant="body2" gutterBottom>
                           Attachments:
                         </Typography>
                         {attachments.map((file, index) => (
@@ -631,7 +632,7 @@ const AssignmentDetail = () => {
                       fullWidth
                       onClick={handleSubmitAssignment}
                       disabled={submitting || attachments.length === 0 || isSubmitted}
-                      sx={{ mb: 1, bgcolor: '#1976d2' }}
+                      sx={{ mb: 1 }}
                     >
                       {submitting ? 'Submitting...' : (isSubmitted ? 'Turned in' : 'Turn in')}
                     </Button>
