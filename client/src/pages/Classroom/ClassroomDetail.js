@@ -454,21 +454,29 @@ const ClassroomDetail = () => {
                                                             <Typography variant="body2" color="text.secondary">
                                                                 {assignment?.dueDate ? `Due ${format(new Date(assignment.dueDate), 'MMM d')}` : 'No due date'}
                                                             </Typography>
-                                                            {user?.role === 'student' && (
-                                                                (() => {
-                                                                    const studentId = user?._id;
-                                                                    const mySubmission = assignment?.submissions?.find((s) => {
-                                                                        const sid = s.student?._id || s.student;
-                                                                        return sid && sid.toString() === studentId;
-                                                                    });
-                                                                    const showAssigned = assignment?.collectSubmissions;
-                                                                    return mySubmission ? (
-                                                                        <Chip label="Turned in" color="success" size="small" />
-                                                                    ) : showAssigned ? (
-                                                                        <Chip label="Assigned" color="warning" size="small" />
-                                                                    ) : null;
-                                                                })()
-                                                            )}
+                                    {user?.role === 'student' && (
+                                        (() => {
+                                            const studentId = user?._id;
+                                            const mySubmission = assignment?.submissions?.find((s) => {
+                                                const sid = s.student?._id || s.student;
+                                                return sid && sid.toString() === studentId;
+                                            });
+                                            const showAssigned = assignment?.collectSubmissions;
+                                            if (mySubmission) {
+                                                const due = assignment?.dueDate ? new Date(assignment.dueDate) : null;
+                                                const submittedAt = mySubmission?.submittedAt ? new Date(mySubmission.submittedAt) : null;
+                                                const isLate = due && submittedAt && submittedAt.getTime() > due.getTime();
+                                                return isLate ? (
+                                                    <Chip label="Late" color="error" size="small" />
+                                                ) : (
+                                                    <Chip label="Turned in" color="success" size="small" />
+                                                );
+                                            }
+                                            return showAssigned ? (
+                                                <Chip label="Assigned" color="warning" size="small" />
+                                            ) : null;
+                                        })()
+                                    )}
                                                         </Box>
                                                     </Box>
                                                     {assignment.description && (
@@ -486,9 +494,6 @@ const ClassroomDetail = () => {
                                                                 No due date
                                                             </Typography>
                                                         )}
-                                                        <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                                                            Points: {assignment.points}
-                                                        </Typography>
                                                     </Box>
                                                 </Box>
                                             </Box>

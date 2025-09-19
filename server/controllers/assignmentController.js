@@ -38,7 +38,7 @@ const createAssignment = async (req, res) => {
     console.log('Received request body:', req.body); // Debug log
     console.log('Received files:', req.files); // Debug log
 
-    const { title, description, dueDate, points, classroom, teacher, collectSubmissions } = req.body;
+    const { title, description, dueDate, classroom, teacher, collectSubmissions } = req.body;
 
     // Validate classroom and teacher IDs
     if (!classroom || !teacher) {
@@ -89,7 +89,7 @@ const createAssignment = async (req, res) => {
       title,
       description,
       dueDate: dueDate ? new Date(dueDate) : undefined,
-      points: points || 100,
+      
       classroom,
       teacher,
       attachments,
@@ -597,7 +597,7 @@ const updateAssignment = async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id;
     const userRole = req.user.role;
-    const { title, description, dueDate, points, collectSubmissions } = req.body;
+    const { title, description, dueDate, collectSubmissions } = req.body;
 
     // Find the assignment
     const assignment = await Assignment.findById(id);
@@ -664,7 +664,7 @@ const updateAssignment = async (req, res) => {
     if (title) updateData.title = title;
     if (description) updateData.description = description;
     if (dueDate) updateData.dueDate = new Date(dueDate);
-    if (points) updateData.points = parseInt(points);
+    
     if (newAttachments.length > 0) {
       updateData.attachments = [...assignment.attachments, ...newAttachments];
     }

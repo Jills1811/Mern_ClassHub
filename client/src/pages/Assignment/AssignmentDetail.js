@@ -75,6 +75,7 @@ const AssignmentDetail = () => {
   const [pdfMenuAnchorEl, setPdfMenuAnchorEl] = useState(null);
   const [unsubmitting, setUnsubmitting] = useState(false);
   const [submissionsOpen, setSubmissionsOpen] = useState(false);
+  const [classroomStudents, setClassroomStudents] = useState([]);
 
   const fetchAssignment = useCallback(async () => {
     try {
@@ -83,6 +84,19 @@ const AssignmentDetail = () => {
       
       if (response.data.success) {
         setAssignment(response.data.assignment);
+        // For teachers, fetch classroom roster to compute remaining
+        if (user.role === 'teacher' && response.data.assignment?.classroom) {
+          try {
+            const classroomRef = response.data.assignment.classroom;
+            const classroomId = (classroomRef && typeof classroomRef === 'object') ? classroomRef._id : classroomRef;
+            const clsRes = await API.get(`/classrooms/${classroomId}`);
+            if (clsRes.data?.success) {
+              setClassroomStudents(clsRes.data.classroom?.students || []);
+            }
+          } catch (e) {
+            console.error('Failed to fetch classroom roster:', e);
+          }
+        }
         
         // Check if user has already submitted
         if (user.role === 'student') {
@@ -307,6 +321,23 @@ const AssignmentDetail = () => {
 
   const isOverdue = assignment && assignment.dueDate && new Date(assignment.dueDate) < new Date();
   const isSubmitted = submission && submission.submittedAt;
+  // Teacher grouping: on-time, late, remaining
+  const dueDateObj = assignment?.dueDate ? new Date(assignment.dueDate) : null;
+  const allSubs = Array.isArray(assignment?.submissions) ? assignment.submissions : [];
+  const turnedInOnTime = allSubs.filter(s => {
+    if (!dueDateObj) return true; // no due date => treat as on time
+    const subDate = s?.submittedAt ? new Date(s.submittedAt) : null;
+    if (!subDate) return false;
+    return subDate.getTime() <= dueDateObj.getTime();
+  });
+  const turnedInLate = allSubs.filter(s => {
+    if (!dueDateObj) return false; // no late if no due date
+    const subDate = s?.submittedAt ? new Date(s.submittedAt) : null;
+    if (!subDate) return false;
+    return subDate.getTime() > dueDateObj.getTime();
+  });
+  const submittedStudentIdSet = new Set(allSubs.map(s => (s.student?._id || s.student)?.toString()).filter(Boolean));
+  const remainingStudents = (Array.isArray(classroomStudents) ? classroomStudents : []).filter(stu => !submittedStudentIdSet.has((stu?._id || stu)?.toString()));
   
   // Debug logging
   console.log('Current submission state:', submission);
@@ -520,9 +551,18 @@ const AssignmentDetail = () => {
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Your work
                 </Typography>
-                <Typography variant="body2" color="success.main" sx={{ fontWeight: 500 }}>
-                  {isSubmitted ? 'Turned in' : (assignment.collectSubmissions ? 'Assigned' : 'No submission required')}
-                      </Typography>
+                {(() => {
+                  const due = assignment?.dueDate ? new Date(assignment.dueDate) : null;
+                  const submittedAt = submission?.submittedAt ? new Date(submission.submittedAt) : null;
+                  const isLate = isSubmitted && due && submittedAt && submittedAt.getTime() > due.getTime();
+                  const label = isSubmitted ? (isLate ? 'Late' : 'Turned in') : (assignment.collectSubmissions ? 'Assigned' : 'No submission required');
+                  const color = isSubmitted ? (isLate ? 'error.main' : 'success.main') : 'text.secondary';
+                  return (
+                    <Typography variant="body2" sx={{ fontWeight: 500, color }}>
+                      {label}
+                    </Typography>
+                  );
+                })()}
                     </Box>
 
               {assignment.collectSubmissions ? (
@@ -666,60 +706,78 @@ const AssignmentDetail = () => {
               borderRadius: 2,
               boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
             }}>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'white' }}>
-                Submissions ({assignment.submissions?.length || 0})
-            </Typography>
-              {/* Debug log for teacher */}
-              {console.log('Teacher view - All submissions:', assignment.submissions)}
-              <Button size="small" variant="outlined" onClick={() => setSubmissionsOpen(true)} sx={{ color: 'text.primary', borderColor: '#e0e0e0', mb: 1 }}>
-                View submissions
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                Student work
+              </Typography>
+              <Button size="small" variant="outlined" onClick={() => setSubmissionsOpen(true)} sx={{ color: 'text.primary', borderColor: '#e0e0e0', mb: 2 }}>
+                View grouped submissions
               </Button>
-              {/* Submissions list */}
-              {Array.isArray(assignment.submissions) && assignment.submissions.length > 0 ? (
-                <List dense sx={{ mt: 1 }}>
-                  {assignment.submissions.map((sub, idx) => (
-                    <ListItem key={idx} sx={{ px: 0, alignItems: 'flex-start' }}>
-                <ListItemAvatar>
-                        <Avatar sx={{ bgcolor: '#1976d2', width: 32, height: 32 }}>
-                    <PersonIcon />
-                  </Avatar>
-                </ListItemAvatar>
-                <ListItemText
-                        primary={sub.student?.name || 'Student'}
-                        secondary={
-                          <Box component="span">
-                            <Typography component="span" variant="caption" color="text.secondary">
-                              Submitted {formatDate(sub.submittedAt, 'MMM d, yyyy h:mm a')}
-                            </Typography>
-                            {Array.isArray(sub.attachments) && sub.attachments.length > 0 ? (
-                              <Box sx={{ mt: 1 }}>
-                                <Typography variant="caption" color="success.main" sx={{ display: 'block', mb: 0.5 }}>
-                                  Files submitted:
-                                </Typography>
-                                {sub.attachments.map((a, i) => (
-                                  <Chip
-                                    key={i}
-                                    label={a.filename || 'Attachment'}
-                                    size="small"
-                                    onClick={() => a.url && window.open(a.url.startsWith('http') ? a.url : (API.defaults.baseURL || 'http://localhost:5000/api').replace(/\/?api\/?$/, '') + a.url, '_blank')}
-                                    sx={{ mr: 0.5, mb: 0.5 }}
-                                  />
-                                ))}
-                              </Box>
-                            ) : (
-                              <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 0.5 }}>
-                                No files attached
-                              </Typography>
-                            )}
-                          </Box>
-                        }
-                />
-              </ListItem>
-                  ))}
-                </List>
-              ) : (
-                <Typography variant="body2" color="text.secondary">No submissions yet</Typography>
-              )}
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>Turned in on time ({turnedInOnTime.length})</Typography>
+                  {turnedInOnTime.length > 0 ? (
+                    <List dense>
+                      {turnedInOnTime.map((sub, idx) => (
+                        <ListItem key={`on-${idx}`} sx={{ px: 0 }}>
+                          <ListItemAvatar>
+                            <Avatar sx={{ bgcolor: '#2e7d32', width: 28, height: 28 }}>
+                              <PersonIcon fontSize="small" />
+                            </Avatar>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={sub.student?.name || 'Student'}
+                            secondary={`Submitted ${formatDate(sub.submittedAt, 'MMM d, yyyy h:mm a')}`}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">No on-time submissions</Typography>
+                  )}
+                </Box>
+                <Box>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>Turned in late ({turnedInLate.length})</Typography>
+                  {turnedInLate.length > 0 ? (
+                    <List dense>
+                      {turnedInLate.map((sub, idx) => (
+                        <ListItem key={`late-${idx}`} sx={{ px: 0 }}>
+                          <ListItemAvatar>
+                            <Avatar sx={{ bgcolor: '#d32f2f', width: 28, height: 28 }}>
+                              <PersonIcon fontSize="small" />
+                            </Avatar>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={sub.student?.name || 'Student'}
+                            secondary={`Submitted ${formatDate(sub.submittedAt, 'MMM d, yyyy h:mm a')}`}
+                          />
+                          <Chip label="Late" color="error" size="small" />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">No late submissions</Typography>
+                  )}
+                </Box>
+                <Box>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>Remaining ({remainingStudents.length})</Typography>
+                  {remainingStudents.length > 0 ? (
+                    <List dense>
+                      {remainingStudents.map((stu, idx) => (
+                        <ListItem key={`rem-${idx}`} sx={{ px: 0 }}>
+                          <ListItemAvatar>
+                            <Avatar sx={{ bgcolor: '#616161', width: 28, height: 28 }}>
+                              <PersonIcon fontSize="small" />
+                            </Avatar>
+                          </ListItemAvatar>
+                          <ListItemText primary={stu?.name || 'Student'} />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">No remaining students</Typography>
+                  )}
+                </Box>
+              </Box>
             </Box>
         </Grid>
         )}
@@ -799,56 +857,60 @@ const AssignmentDetail = () => {
 
       {/* Submissions Dialog (Teacher) */}
       <Dialog open={submissionsOpen} onClose={() => setSubmissionsOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Submissions ({assignment.submissions?.length || 0})</DialogTitle>
+        <DialogTitle>Student work</DialogTitle>
         <DialogContent dividers>
-          {Array.isArray(assignment.submissions) && assignment.submissions.length > 0 ? (
-            <List>
-              {assignment.submissions.map((sub, idx) => (
-                <ListItem key={idx} alignItems="flex-start">
-                <ListItemAvatar>
-                    <Avatar><PersonIcon /></Avatar>
-                </ListItemAvatar>
-                <ListItemText
-                    primary={sub.student?.name || 'Student'}
-                    secondary={
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">
-                          Submitted {formatDate(sub.submittedAt, 'MMM d, yyyy h:mm a')}
-                        </Typography>
-                        <Box sx={{ mt: 1 }}>
-                          {Array.isArray(sub.attachments) && sub.attachments.length > 0 ? (
-                            <>
-                              <Typography variant="caption" color="success.main" sx={{ display: 'block', mb: 1 }}>
-                                Files submitted:
-                              </Typography>
-                              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                {sub.attachments.map((a, i) => {
-                                  const rawBase = (API?.defaults?.baseURL || 'http://localhost:5000/api');
-                                  const apiBase = rawBase.replace(/\/?api\/?$/, '');
-                                  const href = a.url?.startsWith('http') ? a.url : `${apiBase}${a.url || ''}`;
-                                  return (
-                                    <Button key={i} size="small" color="primary" variant="outlined" startIcon={<DownloadIcon />} onClick={() => window.open(href, '_blank')}>
-                                      {a.filename || `File ${i+1}`}
-                                    </Button>
-                                  );
-                                })}
-                              </Box>
-                            </>
-                          ) : (
-                            <Typography variant="body2" color="warning.main">
-                              No files attached to submission
-                            </Typography>
-                          )}
-                        </Box>
-                      </Box>
-                    }
-                />
-              </ListItem>
-              ))}
-            </List>
-          ) : (
-            <Typography variant="body2">No submissions yet</Typography>
-          )}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" sx={{ mb: 1 }}>Turned in on time ({turnedInOnTime.length})</Typography>
+            {turnedInOnTime.length > 0 ? (
+              <List>
+                {turnedInOnTime.map((sub, idx) => (
+                  <ListItem key={`dlg-on-${idx}`}>
+                    <ListItemAvatar>
+                      <Avatar><PersonIcon /></Avatar>
+                    </ListItemAvatar>
+                    <ListItemText primary={sub.student?.name || 'Student'} secondary={`Submitted ${formatDate(sub.submittedAt, 'MMM d, yyyy h:mm a')}`} />
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Typography variant="body2" color="text.secondary">No on-time submissions</Typography>
+            )}
+          </Box>
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" sx={{ mb: 1 }}>Turned in late ({turnedInLate.length})</Typography>
+            {turnedInLate.length > 0 ? (
+              <List>
+                {turnedInLate.map((sub, idx) => (
+                  <ListItem key={`dlg-late-${idx}`}>
+                    <ListItemAvatar>
+                      <Avatar><PersonIcon /></Avatar>
+                    </ListItemAvatar>
+                    <ListItemText primary={sub.student?.name || 'Student'} secondary={`Submitted ${formatDate(sub.submittedAt, 'MMM d, yyyy h:mm a')}`} />
+                    <Chip label="Late" color="error" size="small" />
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Typography variant="body2" color="text.secondary">No late submissions</Typography>
+            )}
+          </Box>
+          <Box>
+            <Typography variant="subtitle1" sx={{ mb: 1 }}>Remaining ({remainingStudents.length})</Typography>
+            {remainingStudents.length > 0 ? (
+              <List>
+                {remainingStudents.map((stu, idx) => (
+                  <ListItem key={`dlg-rem-${idx}`}>
+                    <ListItemAvatar>
+                      <Avatar><PersonIcon /></Avatar>
+                    </ListItemAvatar>
+                    <ListItemText primary={stu?.name || 'Student'} />
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Typography variant="body2" color="text.secondary">No remaining students</Typography>
+            )}
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSubmissionsOpen(false)}>Close</Button>

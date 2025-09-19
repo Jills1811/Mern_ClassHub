@@ -193,7 +193,7 @@ const getMyClassrooms = async (req, res) => {
 
         // Ensure all assignments are properly serialized as plain objects
         const serializedClassrooms = classrooms.map(classroom => {
-            const classroomObj = classroom.toObject();
+            const classroomObj = classroom.toObject ? classroom.toObject() : classroom;
             
             // For students, assignments are already processed, so preserve them
             if (userRole === 'student') {

@@ -11,7 +11,7 @@ import {
   Alert,
   CircularProgress,
   Chip,
-  IconButton
+  
 } from '@mui/material';
 import {
   AttachFile as AttachFileIcon,
@@ -73,7 +73,6 @@ const CreateAssignment = () => {
     title: '',
     description: '',
     dueDate: null,
-    points: 100,
     collectSubmissions: false
   });
   const [loading, setLoading] = useState(false);
@@ -126,7 +125,6 @@ const CreateAssignment = () => {
       if (formData.dueDate) {
         formDataToSend.append('dueDate', formData.dueDate.toISOString());
       }
-      formDataToSend.append('points', parseInt(formData.points));
       formDataToSend.append('teacher', user._id);
       formDataToSend.append('classroom', classroomId);
       formDataToSend.append('collectSubmissions', formData.dueDate ? formData.collectSubmissions : false);
@@ -219,17 +217,7 @@ const CreateAssignment = () => {
             />
           </LocalizationProvider>
 
-          <TextField
-            name="points"
-            label="Maximum Points"
-            type="number"
-            required
-            fullWidth
-            value={formData.points}
-            onChange={(e) => setFormData({ ...formData, points: e.target.value })}
-            margin="normal"
-            inputProps={{ min: 0 }}
-          />
+          
 
           {/* Show submissions status based on due date */}
           {console.log('Current dueDate value:', formData.dueDate, 'Boolean check:', !!formData.dueDate)}

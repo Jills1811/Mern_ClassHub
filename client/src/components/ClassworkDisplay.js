@@ -375,9 +375,7 @@ const ClassworkDisplay = ({ classroomId, userRole, onContentUpdated }) => {
                   <Typography variant="body2" color="text.secondary">
                     {item.dueDate ? `Due: ${formatDate(item.dueDate, 'MMM dd, yyyy')}` : 'No due date'}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Points: {item.points}
-                  </Typography>
+                  
                   <Typography variant="body2" color="text.secondary">
                     Created: {formatDate(item.createdAt, 'MMM dd, yyyy')}
                   </Typography>

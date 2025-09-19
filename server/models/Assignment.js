@@ -15,10 +15,7 @@ const assignmentSchema = new mongoose.Schema({
     type: Date,
     required: false
   },
-  points: {
-    type: Number,
-    default: 100
-  },
+  
   classroom: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Classroom',
