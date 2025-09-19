@@ -45,6 +45,20 @@ import API from '../../utils/Api';
 import { toast } from 'react-toastify';
 
 const AssignmentDetail = () => {
+  const truncateMiddle = (text, maxLength = 48) => {
+    if (!text || typeof text !== 'string') return text;
+    if (text.length <= maxLength) return text;
+    const lastDot = text.lastIndexOf('.');
+    const hasExt = lastDot > 0 && lastDot < text.length - 1;
+    const ext = hasExt ? text.substring(lastDot) : '';
+    const available = maxLength - ext.length - 3; // 3 for '...'
+    if (available <= 0) return '...' + ext;
+    const startLen = Math.ceil(available / 2);
+    const endLen = Math.floor(available / 2);
+    const start = text.substring(0, startLen);
+    const end = hasExt ? text.substring(lastDot - endLen, lastDot) : text.substring(text.length - endLen);
+    return `${start}...${end}${ext}`;
+  };
   const formatDate = (value, pattern = 'MMM d') => {
     if (!value) return '—';
     const dateObj = new Date(value);
@@ -451,10 +465,11 @@ const AssignmentDetail = () => {
                     border: '1px solid',
                     borderColor: 'divider',
                     borderRadius: 1,
-                    mb: 2 
+                    mb: 2,
+                    width: '100%'
                   }}>
                     <AttachFileIcon sx={{ color: 'text.secondary' }} />
-                    <Box sx={{ flex: 1 }}>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography 
                         variant="body1" 
                         sx={{ 
@@ -462,23 +477,25 @@ const AssignmentDetail = () => {
                           textDecoration: 'underline', 
                           color: 'text.primary',
                           cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          maxWidth: '100%',
                           '&:hover': {
                             color: 'primary.main'
                           }
                         }}
                         onClick={() => handleDownloadAttachment(attachment)}
                       >
-                        {attachment.filename}
+                        {truncateMiddle(attachment.filename, 48)}
               </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                        PDF
-              </Typography>
+                        
             </Box>
                     <Button
                       size="small"
                       startIcon={<DownloadIcon />}
                       onClick={() => handleDownloadAttachment(attachment)}
-                      sx={{ borderColor: 'divider' }}
+                      sx={{ borderColor: 'divider', flexShrink: 0 }}
                       variant="outlined"
                     >
                       View
@@ -584,10 +601,11 @@ const AssignmentDetail = () => {
                             p: 2, 
                             border: '1px solid #e0e0e0', 
                             borderRadius: 1,
-                            mb: 2 
+                            mb: 2,
+                            width: '100%'
                           }}>
                             <AttachFileIcon sx={{ color: 'text.secondary' }} />
-                            <Box sx={{ flex: 1 }}>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
                           <Typography 
                                 variant="body1" 
                                 sx={{ 
@@ -595,23 +613,25 @@ const AssignmentDetail = () => {
                                   textDecoration: 'underline', 
                               color: 'text.primary',
                                   cursor: 'pointer',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  maxWidth: '100%',
                                   '&:hover': {
                                 color: 'primary.main'
                                   }
                                 }}
                                 onClick={() => handleDownloadAttachment(attachment)}
                               >
-                                {attachment.filename}
+                                {truncateMiddle(attachment.filename, 48)}
                               </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                PDF
-                        </Typography>
+                              
                             </Box>
                           <Button
                               size="small"
                               startIcon={<DownloadIcon />}
                               onClick={() => handleDownloadAttachment(attachment)}
-                              sx={{ borderColor: 'divider' }}
+                              sx={{ borderColor: 'divider', flexShrink: 0 }}
                             variant="outlined"
                           >
                               View
