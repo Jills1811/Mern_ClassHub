@@ -572,8 +572,9 @@ const AssignmentDetail = () => {
                   const due = assignment?.dueDate ? new Date(assignment.dueDate) : null;
                   const submittedAt = submission?.submittedAt ? new Date(submission.submittedAt) : null;
                   const isLate = isSubmitted && due && submittedAt && submittedAt.getTime() > due.getTime();
-                  const label = isSubmitted ? (isLate ? 'Late' : 'Turned in') : (assignment.collectSubmissions ? 'Assigned' : 'No submission required');
-                  const color = isSubmitted ? (isLate ? 'error.main' : 'success.main') : 'text.secondary';
+                  const isOverdue = !isSubmitted && due && due.getTime() < new Date().getTime();
+                  const label = isSubmitted ? (isLate ? 'Late' : 'Turned in') : (assignment.collectSubmissions ? (isOverdue ? 'Missing' : 'Assigned') : 'No submission required');
+                  const color = isSubmitted ? (isLate ? 'error.main' : 'success.main') : (isOverdue ? 'error.main' : 'text.secondary');
                   return (
                     <Typography variant="body2" sx={{ fontWeight: 500, color }}>
                       {label}

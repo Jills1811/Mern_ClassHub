@@ -472,9 +472,16 @@ const ClassroomDetail = () => {
                                                     <Chip label="Turned in" color="success" size="small" />
                                                 );
                                             }
-                                            return showAssigned ? (
-                                                <Chip label="Assigned" color="warning" size="small" />
-                                            ) : null;
+                                            if (showAssigned) {
+                                                const due = assignment?.dueDate ? new Date(assignment.dueDate) : null;
+                                                const isOverdue = due && due.getTime() < new Date().getTime();
+                                                return isOverdue ? (
+                                                    <Chip label="Missing" color="error" size="small" />
+                                                ) : (
+                                                    <Chip label="Assigned" color="warning" size="small" />
+                                                );
+                                            }
+                                            return null;
                                         })()
                                     )}
                                                         </Box>
