@@ -256,28 +256,113 @@ const AssignmentDetail = () => {
     handleMenuClose();
   };
 
-  const handleDownloadAttachment = (attachment) => {
-    if (attachment.url) {
+  const handleDownloadAttachment = async (attachment, options = {}) => {
+    const { forceDownload = false } = options;
+    if (!attachment?.url) {
+      toast.error('File URL not available');
+      return;
+    }
+
+    try {
+      const rawBase = (API?.defaults?.baseURL || 'http://localhost:5000/api');
+      const apiBase = rawBase.replace(/\/?api\/?$/, '');
+      let fileUrl = attachment.url.startsWith('http')
+        ? attachment.url
+        : `${apiBase}${attachment.url}`;
+
+      const isPdf = (attachment.fileType && attachment.fileType.includes('pdf')) || /\.pdf$/i.test(attachment.filename || '');
+
+      // If the file is hosted on Cloudinary and might be private/authenticated, ask backend for a signed URL
+      const isCloudinary = /cloudinary\.com/.test(fileUrl);
+      if ((attachment.publicId && attachment.fileType) || (/\/upload\//.test(fileUrl) && isCloudinary)) {
+        try {
+          // Prefer structured fields if present
+          let publicId = attachment.publicId;
+          let format = (attachment.filename || '').split('.').pop();
+          let resourceTypeFromUrl = attachment.resourceType || (attachment.fileType && attachment.fileType.startsWith('image') ? 'image' : (attachment.fileType && attachment.fileType.startsWith('video') ? 'video' : 'raw'));
+
+          // Fallback: extract from URL when structured fields are missing
+          // Examples:
+          //  - https://res.cloudinary.com/<cloud>/(raw|image|video)/upload/v123/submissions/abc123.zip
+          //  - https://res.cloudinary.com/<cloud>/(raw|image|video)/upload/submissions/abc123.zip (no version)
+          if (!publicId) {
+            const typeMatch = fileUrl.match(/\/(raw|image|video)\/upload\//);
+            resourceTypeFromUrl = typeMatch ? typeMatch[1] : resourceTypeFromUrl || 'raw';
+            const match = fileUrl.match(/\/upload\/(?:v\d+\/)?(.+)\.(\w+)$/);
+            publicId = match && match[1] ? match[1] : undefined;
+            format = match && match[2] ? match[2] : format;
+          }
+          if (publicId) {
+            // Ensure we do NOT include extension in publicId
+            publicId = publicId.replace(/\.(pdf|zip|docx?|png|jpe?g)$/i, '');
+            const wantInline = (!forceDownload && isPdf && !isCloudinary) ? 'inline' : 'download';
+            const signedResp = await API.get(`/files/download`, {
+              params: { publicId, resource_type: resourceTypeFromUrl, format, mode: wantInline }
+            });
+            if (signedResp?.data?.success && signedResp.data.url) {
+              fileUrl = signedResp.data.url;
+            } else {
+              throw new Error('Failed to sign Cloudinary URL');
+            }
+          }
+        } catch (e) {
+          console.warn('Signing Cloudinary URL failed:', e);
+          toast.error('Unable to download file (authorization required).');
+          return;
+        }
+      }
+
+      // If PDF, open in inline viewer dialog
+      if (isPdf && !forceDownload && !/cloudinary\.com/.test(fileUrl)) {
+        setPdfUrl(fileUrl);
+        setPdfOpen(true);
+        return;
+      }
+
+      // For cross-origin (e.g., Cloudinary) or when forcing download, use anchor to avoid CORS issues
+      const isCrossOrigin = !fileUrl.startsWith(apiBase);
+      if (isCrossOrigin || forceDownload) {
+        const link = document.createElement('a');
+        link.href = fileUrl;
+        link.download = attachment.filename || 'download';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        return;
+      }
+
+      // Same-origin: fetch blob and download
+      const response = await fetch(fileUrl, { method: 'GET' });
+      if (!response.ok) throw new Error(`Download failed with status ${response.status}`);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = attachment.filename || 'download';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.warn('Blob download failed, falling back to direct URL:', error);
       try {
-        // Build absolute URL for backend (works when frontend is on :3000)
+        // Fallback: navigate to direct URL to let browser handle download
         const rawBase = (API?.defaults?.baseURL || 'http://localhost:5000/api');
         const apiBase = rawBase.replace(/\/?api\/?$/, '');
-        // If it's a local file, construct the full URL
-        const viewUrl = attachment.url.startsWith('http') 
-          ? attachment.url 
+        const fileUrl = attachment.url.startsWith('http')
+          ? attachment.url
           : `${apiBase}${attachment.url}`;
-        
-        console.log('Opening PDF inline viewer:', viewUrl);
-        // Open inline viewer dialog
-        setPdfUrl(viewUrl);
-        setPdfOpen(true);
-        
-      } catch (error) {
-        console.error('Error opening file:', error);
-        toast.error('Failed to open file. Please try again.');
+        // For PDFs, open in the viewer; others open in a new tab triggering browser download
+        const isPdf = (attachment.fileType && attachment.fileType.includes('pdf')) || /\.pdf$/i.test(attachment.filename || '');
+        if (isPdf && !forceDownload) {
+          setPdfUrl(fileUrl);
+          setPdfOpen(true);
+        } else {
+          window.open(fileUrl, '_blank');
+        }
+      } catch (e) {
+        toast.error('Failed to download file.');
       }
-    } else {
-      toast.error('File URL not available');
     }
   };
 
@@ -737,9 +822,9 @@ const AssignmentDetail = () => {
                 <Box>
                   <Typography variant="subtitle2" sx={{ mb: 1 }}>Turned in on time ({turnedInOnTime.length})</Typography>
                   {turnedInOnTime.length > 0 ? (
-                    <List dense>
+                  <List dense>
                       {turnedInOnTime.map((sub, idx) => (
-                        <ListItem key={`on-${idx}`} sx={{ px: 0 }}>
+                        <ListItem key={`on-${idx}`} sx={{ px: 0, alignItems: 'flex-start' }}>
                           <ListItemAvatar>
                             <Avatar sx={{ bgcolor: '#2e7d32', width: 28, height: 28 }}>
                               <PersonIcon fontSize="small" />
@@ -747,7 +832,32 @@ const AssignmentDetail = () => {
                           </ListItemAvatar>
                           <ListItemText
                             primary={sub.student?.name || 'Student'}
-                            secondary={`Submitted ${formatDate(sub.submittedAt, 'MMM d, yyyy h:mm a')}`}
+                            secondary={
+                              <Box>
+                                <Typography variant="caption" color="text.secondary">
+                                  {`Submitted ${formatDate(sub.submittedAt, 'MMM d, yyyy h:mm a')}`}
+                                </Typography>
+                                {Array.isArray(sub.attachments) && sub.attachments.length > 0 && (
+                                  <Box sx={{ mt: 0.5 }}>
+                                    {sub.attachments.map((attachment, aIdx) => (
+                                      <Box key={aIdx} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.25 }}>
+                                        <AttachFileIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                                        <Typography
+                                          variant="body2"
+                                          sx={{ textDecoration: 'underline', cursor: 'pointer' }}
+                                          onClick={() => handleDownloadAttachment(attachment, { forceDownload: true })}
+                                        >
+                                          {truncateMiddle(attachment.filename, 36)}
+                                        </Typography>
+                                        <Button size="small" variant="outlined" onClick={() => handleDownloadAttachment(attachment, { forceDownload: true })} sx={{ borderColor: 'divider', minWidth: 64 }}>
+                                          View
+                                        </Button>
+                                      </Box>
+                                    ))}
+                                  </Box>
+                                )}
+                              </Box>
+                            }
                           />
                         </ListItem>
                       ))}
@@ -761,7 +871,7 @@ const AssignmentDetail = () => {
                   {turnedInLate.length > 0 ? (
                     <List dense>
                       {turnedInLate.map((sub, idx) => (
-                        <ListItem key={`late-${idx}`} sx={{ px: 0 }}>
+                        <ListItem key={`late-${idx}`} sx={{ px: 0, alignItems: 'flex-start' }}>
                           <ListItemAvatar>
                             <Avatar sx={{ bgcolor: '#d32f2f', width: 28, height: 28 }}>
                               <PersonIcon fontSize="small" />
@@ -769,7 +879,32 @@ const AssignmentDetail = () => {
                           </ListItemAvatar>
                           <ListItemText
                             primary={sub.student?.name || 'Student'}
-                            secondary={`Submitted ${formatDate(sub.submittedAt, 'MMM d, yyyy h:mm a')}`}
+                            secondary={
+                              <Box>
+                                <Typography variant="caption" color="text.secondary">
+                                  {`Submitted ${formatDate(sub.submittedAt, 'MMM d, yyyy h:mm a')}`}
+                                </Typography>
+                                {Array.isArray(sub.attachments) && sub.attachments.length > 0 && (
+                                  <Box sx={{ mt: 0.5 }}>
+                                    {sub.attachments.map((attachment, aIdx) => (
+                                      <Box key={aIdx} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.25 }}>
+                                        <AttachFileIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                                        <Typography
+                                          variant="body2"
+                                          sx={{ textDecoration: 'underline', cursor: 'pointer' }}
+                                          onClick={() => handleDownloadAttachment(attachment, { forceDownload: true })}
+                                        >
+                                          {truncateMiddle(attachment.filename, 36)}
+                                        </Typography>
+                                        <Button size="small" variant="outlined" onClick={() => handleDownloadAttachment(attachment, { forceDownload: true })} sx={{ borderColor: 'divider', minWidth: 64 }}>
+                                          View
+                                        </Button>
+                                      </Box>
+                                    ))}
+                                  </Box>
+                                )}
+                              </Box>
+                            }
                           />
                           <Chip label="Late" color="error" size="small" />
                         </ListItem>

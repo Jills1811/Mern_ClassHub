@@ -8,6 +8,7 @@ const assignmentsRouter = require('./routes/assignments');
 const classroomsRouter = require('./routes/classrooms');
 const authRouter = require('./routes/auth');
 const materialsRouter = require('./routes/materials');
+const filesRouter = require('./routes/files');
 const { auth } = require('./middleware/auth');
 const { getClassroomMaterials } = require('./controllers/materialController');
 
@@ -40,6 +41,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/assignments', assignmentsRouter);
 app.use('/api/classrooms', classroomsRouter);
 app.use('/api/materials', materialsRouter);
+app.use('/api/files', filesRouter);
 
 // Fallback mapping for materials classroom route in case router mounting order conflicts
 app.get('/api/materials/classroom/:classroomId', auth, getClassroomMaterials);

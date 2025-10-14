@@ -247,15 +247,28 @@ const submitAssignment = async (req, res) => {
       for (const file of req.files) {
         try {
           if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+          console.log('[Cloudinary] Uploading submission to Cloudinary:', {
+            originalName: file.originalname,
+            mimetype: file.mimetype,
+            size: file.size
+          });
+          // Use raw for non-images (pdf, zip, doc/docx) to avoid "Blocked for delivery"
+          const resourceType = file.mimetype && file.mimetype.startsWith('image/') ? 'image' : 'raw';
           const result = await cloudinary.uploader.upload(file.path, {
             folder: 'submissions',
-            resource_type: 'auto'
+            resource_type: resourceType
+          });
+          console.log('[Cloudinary] Upload success:', {
+            publicId: result.public_id,
+            resourceType: result.resource_type,
+            secureUrl: result.secure_url
           });
           attachments.push({
             filename: file.originalname,
             url: result.secure_url,
               fileType: file.mimetype,
-              publicId: result.public_id
+              publicId: result.public_id,
+              resourceType: result.resource_type
             });
           } else {
             // Local storage path served by /api/uploads
@@ -267,7 +280,7 @@ const submitAssignment = async (req, res) => {
             });
           }
         } catch (uploadError) {
-          console.error('File upload error:', uploadError);
+          console.error('[Uploads] File upload error:', uploadError?.message || uploadError);
         }
       }
     }
