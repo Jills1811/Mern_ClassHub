@@ -21,11 +21,21 @@ router.get('/download', auth, async (req, res) => {
         secure: true
       });
     } else {
-      // Always use private_download_url for downloads (works for image/video/raw restricted assets)
-      url = cloudinary.utils.private_download_url(publicId, format || undefined, {
-        resource_type,
-        attachment: true
-      });
+      // Use best method per resource type
+      if (resource_type === 'raw' || resource_type === 'video') {
+        url = cloudinary.utils.private_download_url(publicId, format || undefined, {
+          resource_type,
+          attachment: true
+        });
+      } else {
+        // image: generate a signed URL with attachment flag
+        url = cloudinary.url(publicIdWithFormat || publicId, {
+          resource_type,
+          sign_url: true,
+          secure: true,
+          flags: 'attachment'
+        });
+      }
     }
 
     return res.json({ success: true, url });

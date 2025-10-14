@@ -73,9 +73,9 @@ const AssignmentDetail = () => {
   const [assignment, setAssignment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // Student submission features temporarily disabled
   const [submission, setSubmission] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  // Text submissions disabled; files only
   const [attachments, setAttachments] = useState([]);
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState([]);
@@ -87,6 +87,7 @@ const AssignmentDetail = () => {
   const [pdfUrl, setPdfUrl] = useState('');
   const [pdfOpen, setPdfOpen] = useState(false);
   const [pdfMenuAnchorEl, setPdfMenuAnchorEl] = useState(null);
+  const [downloadPrompt, setDownloadPrompt] = useState({ open: false, url: '', filename: '' });
   const [unsubmitting, setUnsubmitting] = useState(false);
   const [submissionsOpen, setSubmissionsOpen] = useState(false);
   const [classroomStudents, setClassroomStudents] = useState([]);
@@ -112,50 +113,18 @@ const AssignmentDetail = () => {
           }
         }
         
-        // Check if user has already submitted
+        // For students, hydrate their existing submission if present
         if (user.role === 'student') {
-          console.log('Assignment submissions:', response.data.assignment.submissions);
-          console.log('Current user ID:', user._id);
-          console.log('User role:', user.role);
-          
-          // Log each submission's student ID for debugging
-          if (response.data.assignment.submissions) {
-            response.data.assignment.submissions.forEach((sub, index) => {
-              const studentId = sub.student?._id || sub.student;
-              console.log(`Submission ${index}:`, {
-                studentId: sub.student,
-                extractedStudentId: studentId,
-                studentIdString: studentId?.toString(),
-                submittedAt: sub.submittedAt,
-                attachments: sub.attachments
-              });
-            });
-          }
-          
-          const existingSubmission = response.data.assignment.submissions?.find(
-            sub => {
-              // Handle both cases: student as object or string
-              const studentId = sub.student?._id || sub.student;
-              return studentId?.toString() === user._id;
-            }
-          );
-          
-          console.log('Found existing submission:', existingSubmission);
-          
-          if (existingSubmission) {
-            setSubmission(existingSubmission);
-            // ignore any existing text; we only allow files
-            setAttachments(existingSubmission.attachments || []);
+          const subs = response.data.assignment.submissions || [];
+          const existing = subs.find(sub => {
+            const sid = sub.student?._id || sub.student;
+            return sid && sid.toString() === user._id;
+          });
+          if (existing) {
+            setSubmission(existing);
+            setAttachments(existing.attachments || []);
           } else {
-            console.log('No submission found for this user');
-            // Try alternative matching methods
-            const altMatch = response.data.assignment.submissions?.find(
-              sub => {
-                const studentId = sub.student?._id || sub.student;
-                return studentId === user._id;
-              }
-            );
-            console.log('Alternative match (no toString):', altMatch);
+            setSubmission(null);
           }
         }
         
@@ -193,30 +162,38 @@ const AssignmentDetail = () => {
     setSubmitting(true);
     try {
       const formData = new FormData();
-      
-      // Add file attachments
-      attachments.forEach((file, index) => {
-        if (file instanceof File) {
-          formData.append('files', file);
-        }
-      });
+      const filesToSend = attachments.filter((f) => f instanceof File);
+      if (filesToSend.length === 0) {
+        setSubmitting(false);
+        toast.error('Please add a new file to upload.');
+        return;
+      }
+      filesToSend.forEach((file) => formData.append('files', file));
 
       const response = await API.post(`/assignments/${id}/submit`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+        // Let the browser set correct multipart boundary
+        onUploadProgress: (evt) => {
+          if (evt.lengthComputable) {
+            const pct = Math.round((evt.loaded / evt.total) * 100);
+            if (pct % 10 === 0) console.debug(`Upload progress: ${pct}%`);
+          }
+        },
+        timeout: 30000
       });
 
       if (response.data.success) {
         toast.success('Assignment submitted successfully!');
         setSubmission(response.data.submission || { submittedAt: new Date().toISOString(), attachments });
-        fetchAssignment(); // Refresh to get updated data
+        fetchAssignment();
       } else {
         toast.error(response.data.message || 'Failed to submit assignment');
       }
     } catch (error) {
-      console.error('Error submitting assignment:', error);
-      toast.error(error.response?.data?.message || 'Error submitting assignment');
+      if (error.code === 'ECONNABORTED') {
+        toast.error('Upload timed out. Please try again or use a smaller file.');
+      } else {
+        toast.error(error.response?.data?.message || 'Error submitting assignment');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -264,21 +241,28 @@ const AssignmentDetail = () => {
     }
 
     try {
-      const rawBase = (API?.defaults?.baseURL || 'http://localhost:5000/api');
-      const apiBase = rawBase.replace(/\/?api\/?$/, '');
+        const rawBase = (API?.defaults?.baseURL || 'http://localhost:5000/api');
+        const apiBase = rawBase.replace(/\/?api\/?$/, '');
       let fileUrl = attachment.url.startsWith('http')
-        ? attachment.url
-        : `${apiBase}${attachment.url}`;
-
+          ? attachment.url 
+          : `${apiBase}${attachment.url}`;
+        
       const isPdf = (attachment.fileType && attachment.fileType.includes('pdf')) || /\.pdf$/i.test(attachment.filename || '');
+      const isImage = (attachment.fileType && attachment.fileType.startsWith('image')) || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(attachment.filename || '');
+      const isZip = (attachment.fileType && attachment.fileType.includes('zip')) || /\.(zip)$/i.test(attachment.filename || '');
 
       // If the file is hosted on Cloudinary and might be private/authenticated, ask backend for a signed URL
       const isCloudinary = /cloudinary\.com/.test(fileUrl);
       if ((attachment.publicId && attachment.fileType) || (/\/upload\//.test(fileUrl) && isCloudinary)) {
         try {
+          // Prefer the secure_url already stored on the attachment for reliability
+          if (attachment.url && attachment.url.startsWith('http')) {
+            fileUrl = attachment.url;
+          }
+
           // Prefer structured fields if present
           let publicId = attachment.publicId;
-          let format = (attachment.filename || '').split('.').pop();
+          let format = attachment.format || (attachment.filename || '').split('.').pop();
           let resourceTypeFromUrl = attachment.resourceType || (attachment.fileType && attachment.fileType.startsWith('image') ? 'image' : (attachment.fileType && attachment.fileType.startsWith('video') ? 'video' : 'raw'));
 
           // Fallback: extract from URL when structured fields are missing
@@ -294,15 +278,18 @@ const AssignmentDetail = () => {
           }
           if (publicId) {
             // Ensure we do NOT include extension in publicId
-            publicId = publicId.replace(/\.(pdf|zip|docx?|png|jpe?g)$/i, '');
-            const wantInline = (!forceDownload && isPdf && !isCloudinary) ? 'inline' : 'download';
-            const signedResp = await API.get(`/files/download`, {
-              params: { publicId, resource_type: resourceTypeFromUrl, format, mode: wantInline }
-            });
-            if (signedResp?.data?.success && signedResp.data.url) {
-              fileUrl = signedResp.data.url;
-            } else {
-              throw new Error('Failed to sign Cloudinary URL');
+            publicId = publicId.replace(/\.(pdf|zip|docx?|png|jpe?g|gif|webp)$/i, '');
+            // Only attempt signing if the direct secure_url fails for some reason
+            if (!fileUrl || !fileUrl.startsWith('http')) {
+              const wantInline = (!forceDownload && (isPdf || isImage)) ? 'inline' : 'download';
+              const signedResp = await API.get(`/files/download`, {
+                params: { publicId, resource_type: resourceTypeFromUrl, format, mode: wantInline }
+              });
+              if (signedResp?.data?.success && signedResp.data.url) {
+                fileUrl = signedResp.data.url;
+              } else {
+                throw new Error('Failed to sign Cloudinary URL');
+              }
             }
           }
         } catch (e) {
@@ -312,10 +299,25 @@ const AssignmentDetail = () => {
         }
       }
 
-      // If PDF, open in inline viewer dialog
-      if (isPdf && !forceDownload && !/cloudinary\.com/.test(fileUrl)) {
-        setPdfUrl(fileUrl);
-        setPdfOpen(true);
+      // Preview behavior: PDFs -> inline dialog, Images -> open in new tab
+      if (!forceDownload) {
+        if (isPdf) {
+          // For students, prefer opening in a new tab to avoid blank iframe issues
+          if (user?.role === 'student') {
+            window.open(fileUrl, '_blank');
+            return;
+          }
+          // Teachers: show inline dialog preview
+          setPdfUrl(fileUrl);
+          setPdfOpen(true);
+          return;
+        }
+        if (isImage) {
+          window.open(fileUrl, '_blank');
+          return;
+        }
+        // For non-previewables (e.g., zip, docx), show prompt dialog instead of auto download
+        setDownloadPrompt({ open: true, url: fileUrl, filename: attachment.filename || 'download' });
         return;
       }
 
@@ -357,7 +359,7 @@ const AssignmentDetail = () => {
         if (isPdf && !forceDownload) {
           setPdfUrl(fileUrl);
           setPdfOpen(true);
-        } else {
+    } else {
           window.open(fileUrl, '_blank');
         }
       } catch (e) {
@@ -639,18 +641,19 @@ const AssignmentDetail = () => {
               </Grid>
 
         {/* Right Sidebar - Student Work */}
-            {user.role === 'student' && (
+{user.role === 'student' && (
           <Grid item xs={12} md={4}>
             <Box sx={{ 
               p: 3, 
               mb: 3, 
+              borderRadius: 3,
+              background: `linear-gradient(180deg, ${theme.palette.mode==='light' ? '#ffffff' : '#1f1f1f'} 0%, ${theme.palette.mode==='light' ? '#fafafa' : '#1b1b1b'} 100%)`,
+              boxShadow: '0 10px 30px rgba(0,0,0,0.08), 0 1px 0 rgba(0,0,0,0.05)',
               border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 2,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+              borderColor: 'divider'
             }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: 0.2 }}>
                   Your work
                 </Typography>
                 {(() => {
@@ -661,7 +664,7 @@ const AssignmentDetail = () => {
                   const label = isSubmitted ? (isLate ? 'Late' : 'Turned in') : (assignment.collectSubmissions ? (isOverdue ? 'Missing' : 'Assigned') : 'No submission required');
                   const color = isSubmitted ? (isLate ? 'error.main' : 'success.main') : (isOverdue ? 'error.main' : 'text.secondary');
                   return (
-                    <Typography variant="body2" sx={{ fontWeight: 500, color }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color, px: 1.25, py: 0.5, borderRadius: 1, backgroundColor: theme.palette.mode==='light' ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)' }}>
                       {label}
                     </Typography>
                   );
@@ -680,123 +683,59 @@ const AssignmentDetail = () => {
                           Your submitted files:
                         </Typography>
                         {submission.attachments.map((attachment, index) => (
-                          <Box key={index} sx={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: 2, 
-                            p: 2, 
-                            border: '1px solid #e0e0e0', 
-                            borderRadius: 1,
-                            mb: 2,
-                            width: '100%'
-                          }}>
+                          <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 1, mb: 2, width: '100%' }}>
                             <AttachFileIcon sx={{ color: 'text.secondary' }} />
                             <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography 
-                                variant="body1" 
-                                sx={{ 
-                                  fontWeight: 500, 
-                                  textDecoration: 'underline', 
-                              color: 'text.primary',
-                                  cursor: 'pointer',
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  maxWidth: '100%',
-                                  '&:hover': {
-                                color: 'primary.main'
-                                  }
-                                }}
-                                onClick={() => handleDownloadAttachment(attachment)}
-                              >
+                              <Typography variant="body1" sx={{ fontWeight: 500, textDecoration: 'underline', color: 'text.primary', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', '&:hover': { color: 'primary.main' } }} onClick={() => handleDownloadAttachment(attachment)}>
                                 {truncateMiddle(attachment.filename, 48)}
                               </Typography>
-                              
                             </Box>
-                          <Button
-                              size="small"
-                              startIcon={<DownloadIcon />}
-                              onClick={() => handleDownloadAttachment(attachment)}
-                              sx={{ borderColor: 'divider', flexShrink: 0 }}
-                            variant="outlined"
-                          >
-                              View
-                          </Button>
+                            <Button size="small" startIcon={<DownloadIcon />} onClick={() => handleDownloadAttachment(attachment)} sx={{ borderColor: 'divider', flexShrink: 0 }} variant="outlined">View</Button>
                           </Box>
                         ))}
                       </Box>
                     )}
-                    <Button
-                      variant="outlined"
-                      fullWidth
-                      onClick={handleUnsubmit}
-                      disabled={unsubmitting}
-                      sx={{ borderColor: '#e0e0e0', color: 'text.primary' }}
-                    >
-                      {unsubmitting ? 'Unsubmitting...' : 'Unsubmit'}
-                    </Button>
-                      </Box>
+                    <Button variant="outlined" fullWidth onClick={handleUnsubmit} disabled={unsubmitting} sx={{ borderColor: '#e0e0e0', color: 'text.primary' }}>{unsubmitting ? 'Unsubmitting...' : 'Unsubmit'}</Button>
+                  </Box>
                 ) : (
                   <Box>
-                            <Button
-                              variant="outlined"
-                      startIcon={<AddIcon />}
-                      fullWidth
-                      sx={{ mb: 2, borderColor: '#e0e0e0', color: 'text.primary' }}
-                      onClick={() => document.getElementById('file-input').click()}
-                    >
+                    <Button variant="outlined" startIcon={<AddIcon />} fullWidth sx={{
+                      mb: 2,
+                      borderColor: 'divider',
+                      color: 'text.primary',
+                      borderRadius: 2,
+                      height: 44,
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      '&:hover': { boxShadow: '0 6px 20px rgba(25,118,210,0.18)' }
+                    }} onClick={() => document.getElementById('file-input').click()}>
                       Add or create
-                            </Button>
-                    
-                    <input
-                      type="file"
-                      id="file-input"
-                      multiple
-                      onChange={handleFileChange}
-                      style={{ display: 'none' }}
-                    />
-
+                    </Button>
+                    <input type="file" id="file-input" multiple onChange={handleFileChange} style={{ display: 'none' }} />
                     {attachments.length > 0 && (
                       <Box sx={{ mb: 2 }}>
-                        <Typography variant="body2" gutterBottom>
-                          Attachments:
-                        </Typography>
+                        <Typography variant="body2" gutterBottom sx={{ fontWeight: 600, color: 'text.secondary' }}>Attachments</Typography>
                         {attachments.map((file, index) => (
-                          <Chip
-                            key={index}
-                            label={file.name}
-                            onDelete={() => removeAttachment(index)}
-                            sx={{ mr: 1, mb: 1 }}
-                          />
-                          ))}
+                          <Chip key={index} label={file.name} onDelete={() => removeAttachment(index)} sx={{ mr: 1, mb: 1, borderRadius: 1.5, '& .MuiChip-label': { px: 1.25 } }} />
+                        ))}
                       </Box>
                     )}
-                    {/* Removed text input; submission requires files */}
-
-                    <Button
-                      variant="contained"
-                      fullWidth
-                      onClick={handleSubmitAssignment}
-                      disabled={submitting || attachments.length === 0 || isSubmitted}
-                      sx={{ mb: 1 }}
-                    >
-                      {submitting ? 'Submitting...' : (isSubmitted ? 'Turned in' : 'Turn in')}
-                    </Button>
-
-                    {isOverdue && (
-                      <Typography variant="body2" color="error" sx={{ mt: 1, textAlign: 'center' }}>
-                        Work cannot be turned in after the due date
-                      </Typography>
-                )}
-              </Box>
-              )
+                    <Button variant="contained" fullWidth onClick={handleSubmitAssignment} disabled={submitting || attachments.length === 0 || isSubmitted} sx={{
+                      mb: 1,
+                      height: 44,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 700,
+                      boxShadow: '0 10px 20px rgba(25,118,210,0.25)'
+                    }}>{submitting ? 'Submitting...' : (isSubmitted ? 'Turned in' : 'Turn in')}</Button>
+                    {isOverdue && (<Typography variant="body2" color="error" sx={{ mt: 1, textAlign: 'center' }}>Work cannot be turned in after the due date</Typography>)}
+                  </Box>
+                )
               ) : (
                 <Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
-                    This assignment does not require submission.
-                  </Typography>
-              </Box>
-            )}
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>This assignment does not require submission.</Typography>
+                </Box>
+              )}
             </Box>
 
             {/* Private comments removed as per requirement */}
@@ -808,11 +747,13 @@ const AssignmentDetail = () => {
         <Grid item xs={12} md={4}>
             <Box sx={{ 
               p: 3, 
-              border: '1px solid #e0e0e0', 
-              borderRadius: 2,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+              borderRadius: 3,
+              background: `linear-gradient(180deg, ${theme.palette.mode==='light' ? '#ffffff' : '#1f1f1f'} 0%, ${theme.palette.mode==='light' ? '#fafafa' : '#1b1b1b'} 100%)`,
+              boxShadow: '0 10px 30px rgba(0,0,0,0.08), 0 1px 0 rgba(0,0,0,0.05)',
+              border: '1px solid',
+              borderColor: 'divider'
             }}>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 700, letterSpacing: 0.2 }}>
                 Student work
               </Typography>
               <Button size="small" variant="outlined" onClick={() => setSubmissionsOpen(true)} sx={{ color: 'text.primary', borderColor: '#e0e0e0', mb: 2 }}>
@@ -822,7 +763,7 @@ const AssignmentDetail = () => {
                 <Box>
                   <Typography variant="subtitle2" sx={{ mb: 1 }}>Turned in on time ({turnedInOnTime.length})</Typography>
                   {turnedInOnTime.length > 0 ? (
-                  <List dense>
+                    <List dense>
                       {turnedInOnTime.map((sub, idx) => (
                         <ListItem key={`on-${idx}`} sx={{ px: 0, alignItems: 'flex-start' }}>
                           <ListItemAvatar>
@@ -833,23 +774,24 @@ const AssignmentDetail = () => {
                           <ListItemText
                             primary={sub.student?.name || 'Student'}
                             secondary={
-                              <Box>
-                                <Typography variant="caption" color="text.secondary">
+                              <Box component="span">
+                                <Typography component="span" variant="caption" color="text.secondary">
                                   {`Submitted ${formatDate(sub.submittedAt, 'MMM d, yyyy h:mm a')}`}
                                 </Typography>
                                 {Array.isArray(sub.attachments) && sub.attachments.length > 0 && (
-                                  <Box sx={{ mt: 0.5 }}>
+                                  <Box component="span" sx={{ mt: 0.5, display: 'block' }}>
                                     {sub.attachments.map((attachment, aIdx) => (
-                                      <Box key={aIdx} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.25 }}>
+                                      <Box key={aIdx} component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, py: 0.25 }}>
                                         <AttachFileIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                                         <Typography
+                                          component="span"
                                           variant="body2"
                                           sx={{ textDecoration: 'underline', cursor: 'pointer' }}
-                                          onClick={() => handleDownloadAttachment(attachment, { forceDownload: true })}
+                                          onClick={() => handleDownloadAttachment(attachment)}
                                         >
                                           {truncateMiddle(attachment.filename, 36)}
                                         </Typography>
-                                        <Button size="small" variant="outlined" onClick={() => handleDownloadAttachment(attachment, { forceDownload: true })} sx={{ borderColor: 'divider', minWidth: 64 }}>
+                                        <Button size="small" variant="outlined" onClick={() => handleDownloadAttachment(attachment)} sx={{ borderColor: 'divider', minWidth: 64 }}>
                                           View
                                         </Button>
                                       </Box>
@@ -892,11 +834,11 @@ const AssignmentDetail = () => {
                                         <Typography
                                           variant="body2"
                                           sx={{ textDecoration: 'underline', cursor: 'pointer' }}
-                                          onClick={() => handleDownloadAttachment(attachment, { forceDownload: true })}
+                                          onClick={() => handleDownloadAttachment(attachment)}
                                         >
                                           {truncateMiddle(attachment.filename, 36)}
                                         </Typography>
-                                        <Button size="small" variant="outlined" onClick={() => handleDownloadAttachment(attachment, { forceDownload: true })} sx={{ borderColor: 'divider', minWidth: 64 }}>
+                                        <Button size="small" variant="outlined" onClick={() => handleDownloadAttachment(attachment)} sx={{ borderColor: 'divider', minWidth: 64 }}>
                                           View
                                         </Button>
                                       </Box>
@@ -966,6 +908,20 @@ const AssignmentDetail = () => {
         </DialogActions>
       </Dialog>
 
+      {/* Download Prompt Dialog for non-previewable files */}
+      <Dialog open={downloadPrompt.open} onClose={() => setDownloadPrompt({ open: false, url: '', filename: '' })} maxWidth="xs" fullWidth>
+        <DialogTitle>Couldn't preview file</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            You may be offline or the file type isn't supported for preview. Try downloading instead.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDownloadPrompt({ open: false, url: '', filename: '' })}>Cancel</Button>
+          <Button variant="contained" onClick={() => { const a=document.createElement('a'); a.href=downloadPrompt.url; a.download=downloadPrompt.filename || 'download'; document.body.appendChild(a); a.click(); a.remove(); setDownloadPrompt({ open: false, url: '', filename: '' }); }}>Download</Button>
+        </DialogActions>
+      </Dialog>
+
       {/* PDF Viewer Dialog */}
       <Dialog
         open={pdfOpen}
@@ -990,6 +946,9 @@ const AssignmentDetail = () => {
               height="100%"
               style={{ border: 0, display: 'block' }}
               title="PDF Preview"
+              allow="fullscreen"
+              allowFullScreen
+              referrerPolicy="no-referrer"
             />
           ) : null}
         </DialogContent>

@@ -252,8 +252,9 @@ const submitAssignment = async (req, res) => {
             mimetype: file.mimetype,
             size: file.size
           });
-          // Use raw for non-images (pdf, zip, doc/docx) to avoid "Blocked for delivery"
-          const resourceType = file.mimetype && file.mimetype.startsWith('image/') ? 'image' : 'raw';
+          // Use raw for PDFs and other non-images for reliable inline delivery
+          const isPdf = file.mimetype === 'application/pdf';
+          const resourceType = (file.mimetype && file.mimetype.startsWith('image/')) ? 'image' : 'raw';
           const result = await cloudinary.uploader.upload(file.path, {
             folder: 'submissions',
             resource_type: resourceType
@@ -268,7 +269,8 @@ const submitAssignment = async (req, res) => {
             url: result.secure_url,
               fileType: file.mimetype,
               publicId: result.public_id,
-              resourceType: result.resource_type
+              resourceType: result.resource_type,
+              format: result.format
             });
           } else {
             // Local storage path served by /api/uploads
@@ -281,8 +283,24 @@ const submitAssignment = async (req, res) => {
           }
         } catch (uploadError) {
           console.error('[Uploads] File upload error:', uploadError?.message || uploadError);
+          // Fallback to local reference to avoid empty submission
+          try {
+            const path = require('path');
+            attachments.push({
+              filename: file.originalname,
+              url: `/api/uploads/${path.basename(file.path)}`,
+              fileType: file.mimetype,
+              localPath: file.path
+            });
+          } catch (e) {
+            // ignore
+          }
         }
       }
+    }
+
+    if (!attachments.length) {
+      return res.status(400).json({ success: false, message: 'No files were uploaded. Please attach at least one file.' });
     }
 
     // Add submission

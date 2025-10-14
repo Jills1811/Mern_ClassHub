@@ -12,7 +12,8 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     if (token && user) {
-      const newSocket = io(process.env.REACT_APP_SOCKET_URL, {
+      const socketUrl = import.meta?.env?.VITE_SOCKET_URL || 'http://localhost:5000';
+      const newSocket = io(socketUrl, {
         auth: { token }
       });
 
