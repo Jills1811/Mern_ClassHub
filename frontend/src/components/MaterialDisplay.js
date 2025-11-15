@@ -47,6 +47,7 @@ const formatDate = (date, formatStr) => {
 };
 import API from '../utils/Api';
 import MaterialUpload from './MaterialUpload';
+import { toast } from 'react-toastify';
 
 const MaterialDisplay = ({ classroomId, userRole, onMaterialDeleted }) => {
   const [materials, setMaterials] = useState([]);
@@ -151,15 +152,180 @@ const MaterialDisplay = ({ classroomId, userRole, onMaterialDeleted }) => {
   };
 
 
-  const handleDownload = (material) => {
-    if (material.type === 'file' && material.content.file) {
-      const link = document.createElement('a');
-      link.href = material.content.file.url;
-      link.download = material.content.file.filename;
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+  const handleDownload = async (material) => {
+    if (material.type !== 'file' || !material.content.file) {
+      toast.error('File not available');
+      return;
+    }
+
+    const file = material.content.file;
+    const rawUrl = file.url || '';
+    const filename = file.filename || 'download';
+
+    try {
+      const rawBase = (API?.defaults?.baseURL || 'http://localhost:5000/api');
+      const apiBase = rawBase.replace(/\/?api\/?$/, '');
+      let fileUrl = rawUrl.startsWith('http') ? rawUrl : `${apiBase}${rawUrl}`;
+
+      // Check if it's a Cloudinary URL
+      const isCloudinary = /cloudinary\.com/.test(fileUrl);
+      
+      // Use publicId if available (preferred method)
+      if (file.publicId) {
+        // First, try using the direct secure_url if available (most reliable)
+        if (file.url && file.url.startsWith('http') && /cloudinary\.com/.test(file.url)) {
+          // Check if it's a secure_url that we can use directly
+          const secureUrlMatch = file.url.match(/https:\/\/res\.cloudinary\.com\/[^\/]+\/(raw|image|video)\/upload\/v\d+\/(.+)/);
+          if (secureUrlMatch) {
+            // Use the direct secure URL - it should work for downloads
+            fileUrl = file.url;
+            console.log('Using direct Cloudinary secure_url:', fileUrl);
+          } else {
+            // Try to get signed URL from backend
+            try {
+              let format = file.format || (filename || '').split('.').pop();
+              let resourceType = file.resourceType || 'raw';
+              
+              // Clean publicId - remove any extension
+              let publicId = file.publicId.replace(/\.(pdf|zip|docx?|xlsx?|pptx?|png|jpe?g|gif|webp)$/i, '');
+              
+              // Try without format first (Cloudinary auto-detects for raw files)
+              let signedResp = await API.get(`/files/download`, {
+                params: { publicId, resource_type: resourceType, mode: 'download' }
+              });
+              
+              // If that fails, try with format
+              if (!signedResp?.data?.success && format) {
+                signedResp = await API.get(`/files/download`, {
+                  params: { publicId, resource_type: resourceType, format, mode: 'download' }
+                });
+              }
+              
+              if (signedResp?.data?.success && signedResp.data.url) {
+                fileUrl = signedResp.data.url;
+              } else {
+                // Fallback to direct URL
+                fileUrl = file.url;
+                console.warn('Signed URL failed, using direct URL as fallback');
+              }
+            } catch (e) {
+              console.warn('Backend signing failed, using direct URL:', e);
+              fileUrl = file.url;
+            }
+          }
+        } else {
+          // No direct URL, try backend signing
+          try {
+            let format = file.format || (filename || '').split('.').pop();
+            let resourceType = file.resourceType || 'raw';
+            
+            // Clean publicId - remove any extension
+            let publicId = file.publicId.replace(/\.(pdf|zip|docx?|xlsx?|pptx?|png|jpe?g|gif|webp)$/i, '');
+            
+            // Try without format first
+            let signedResp = await API.get(`/files/download`, {
+              params: { publicId, resource_type: resourceType, mode: 'download' }
+            });
+            
+            // If that fails, try with format
+            if (!signedResp?.data?.success && format) {
+              signedResp = await API.get(`/files/download`, {
+                params: { publicId, resource_type: resourceType, format, mode: 'download' }
+              });
+            }
+            
+            if (signedResp?.data?.success && signedResp.data.url) {
+              fileUrl = signedResp.data.url;
+            } else {
+              const errorMsg = signedResp?.data?.message || signedResp?.data?.error?.message || 'Failed to get signed URL';
+              console.error('Cloudinary download failed:', { 
+                publicId, 
+                originalPublicId: file.publicId,
+                format, 
+                resourceType, 
+                error: errorMsg
+              });
+              throw new Error(errorMsg);
+            }
+          } catch (e) {
+            console.error('Cloudinary URL signing failed:', e);
+            toast.error(e.message || 'Failed to download file. Please try again.');
+            return;
+          }
+        }
+      } else if (isCloudinary) {
+        // Fallback: try to extract from URL if publicId not available
+        try {
+          // Prefer the secure_url already stored on the file
+          if (file.url && file.url.startsWith('http')) {
+            fileUrl = file.url;
+          }
+
+          let format = file.format || (filename || '').split('.').pop();
+          let resourceType = file.resourceType || (file.fileType && file.fileType.startsWith('image') ? 'image' : (file.fileType && file.fileType.startsWith('video') ? 'video' : 'raw'));
+
+          // Extract from URL when structured fields are missing
+          const typeMatch = fileUrl.match(/\/(raw|image|video)\/upload\//);
+          resourceType = typeMatch ? typeMatch[1] : resourceType || 'raw';
+          const match = fileUrl.match(/\/upload\/(?:v\d+\/)?(.+)\.(\w+)$/);
+          let publicId = match && match[1] ? match[1] : undefined;
+          format = match && match[2] ? match[2] : format;
+
+          if (publicId) {
+            // Ensure we do NOT include extension in publicId
+            publicId = publicId.replace(/\.(pdf|zip|docx?|png|jpe?g|gif|webp)$/i, '');
+            
+            // Get signed URL from backend
+            const signedResp = await API.get(`/files/download`, {
+              params: { publicId, resource_type: resourceType, format, mode: 'download' }
+            });
+            
+            if (signedResp?.data?.success && signedResp.data.url) {
+              fileUrl = signedResp.data.url;
+            } else {
+              throw new Error(signedResp?.data?.message || 'Failed to get signed URL');
+            }
+          }
+        } catch (e) {
+          console.warn('Cloudinary URL extraction/signing failed:', e);
+          // Fall through to try direct URL
+        }
+      }
+
+      // For Cloudinary or cross-origin URLs, use anchor download
+      const isCrossOrigin = !fileUrl.startsWith(apiBase);
+      if (isCloudinary || isCrossOrigin) {
+        const link = document.createElement('a');
+        link.href = fileUrl;
+        link.download = filename;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+
+      // For same-origin files, try blob download
+      try {
+        const response = await fetch(fileUrl, { method: 'GET' });
+        if (!response.ok) throw new Error(`Download failed with status ${response.status}`);
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+      } catch (error) {
+        console.warn('Blob download failed, falling back to direct URL:', error);
+        // Fallback: navigate to direct URL
+        window.open(fileUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      toast.error('Failed to download file. Please try again.');
     }
   };
 

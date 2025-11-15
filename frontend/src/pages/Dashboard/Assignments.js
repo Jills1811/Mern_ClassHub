@@ -103,9 +103,37 @@ const Assignments = () => {
                       variant="outlined"
                     />
                   </Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    {assignment.description}
-                  </Typography>
+                  <Box sx={{ 
+                    mb: 2, 
+                    width: '100%', 
+                    maxWidth: '100%', 
+                    overflow: 'hidden',
+                    overflowX: 'hidden',
+                    boxSizing: 'border-box'
+                  }}>
+                    <Typography 
+                      variant="body2" 
+                      color="text.secondary" 
+                      sx={{ 
+                        width: '100%',
+                        maxWidth: '100%',
+                        overflow: 'hidden',
+                        overflowX: 'hidden',
+                        overflowY: 'hidden',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'normal',
+                        wordBreak: 'break-all',
+                        overflowWrap: 'anywhere',
+                        wordWrap: 'break-word',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      {assignment.description}
+                    </Typography>
+                  </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <ScheduleIcon fontSize="small" color="action" />

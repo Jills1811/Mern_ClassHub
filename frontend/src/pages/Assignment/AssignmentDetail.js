@@ -498,11 +498,11 @@ const AssignmentDetail = () => {
         </IconButton>
       </Box>
 
-      <Grid container spacing={4} sx={{ width: '100%', margin: 0 }}>
+      <Grid container spacing={4} sx={{ width: '100%', margin: 0, overflowX: 'hidden' }}>
         {/* Main Content - Left Side */}
-        <Grid item xs={12} md={8} sx={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+        <Grid item xs={12} md={8} sx={{ width: '100%', maxWidth: '100%', overflow: 'hidden', overflowX: 'hidden', boxSizing: 'border-box' }}>
             {/* Assignment Header */}
-          <Box sx={{ mb: 4 }}>
+          <Box sx={{ mb: 4, width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
             <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3, width: '100%', flexWrap: 'wrap', gap: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, flex: 1, minWidth: 0 }}>
                 <Avatar sx={{ bgcolor: '#1976d2', width: 40, height: 40, flexShrink: 0 }}>
@@ -535,25 +535,39 @@ const AssignmentDetail = () => {
 
             {/* Assignment Description */}
             {assignment.description && (
-              <Typography 
-                variant="body1" 
-                sx={{ 
-                  lineHeight: 1.6, 
-                  mb: 4, 
-                  fontSize: '1rem',
-                  wordWrap: 'break-word',
-                  overflowWrap: 'break-word',
-                  wordBreak: 'break-word',
-                  maxWidth: '100%',
-                  overflow: 'hidden',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 3,
-                  WebkitBoxOrient: 'vertical',
-                  textOverflow: 'ellipsis'
-                }}
-              >
-                {assignment.description}
-              </Typography>
+              <Box sx={{ 
+                mb: 4, 
+                width: '100%', 
+                maxWidth: '100%', 
+                overflow: 'hidden',
+                overflowX: 'hidden',
+                boxSizing: 'border-box'
+              }}>
+                <Typography 
+                  variant="body1" 
+                  sx={{ 
+                    lineHeight: 1.6, 
+                    fontSize: '1rem',
+                    width: '100%',
+                    maxWidth: '100%',
+                    overflow: 'hidden',
+                    overflowX: 'hidden',
+                    overflowY: 'hidden',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: 'vertical',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'normal',
+                    wordBreak: 'break-all',
+                    overflowWrap: 'anywhere',
+                    wordWrap: 'break-word',
+                    maxHeight: '4.8rem',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  {assignment.description}
+                </Typography>
+              </Box>
             )}
 
             {/* Attachments */}

@@ -433,6 +433,11 @@ const ClassroomDetail = () => {
                                                 transition: 'all 0.2s ease-in-out',
                                         bgcolor: theme.palette.mode === 'light' ? 'grey.50' : '#1f1f1f',
                                         border: theme.palette.mode === 'light' ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.12)',
+                                                width: '100%',
+                                                maxWidth: '100%',
+                                                overflow: 'hidden',
+                                                overflowX: 'hidden',
+                                                boxSizing: 'border-box',
                                                 '&:hover': {
                                                     transform: 'translateY(-2px)',
                                                     boxShadow: 3,
@@ -441,11 +446,11 @@ const ClassroomDetail = () => {
                                             }}
                                             onClick={() => navigate(`/assignment/${assignment._id}`)}
                                         >
-                                            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                                                <Avatar sx={{ bgcolor: 'secondary.main', mt: 0.5 }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, width: '100%', maxWidth: '100%', overflow: 'hidden', overflowX: 'hidden' }}>
+                                                <Avatar sx={{ bgcolor: 'secondary.main', mt: 0.5, flexShrink: 0 }}>
                                                     <AssignmentIcon />
                                                 </Avatar>
-                                                <Box sx={{ flex: 1 }}>
+                                                <Box sx={{ flex: 1, minWidth: 0, width: '100%', maxWidth: '100%', overflow: 'hidden', overflowX: 'hidden' }}>
                                                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, flexWrap: 'wrap', gap: 1 }}>
                                                         <Typography variant="h6" sx={{ fontWeight: 600 }}>
                                                             {assignment.title}
@@ -487,9 +492,37 @@ const ClassroomDetail = () => {
                                                         </Box>
                                                     </Box>
                                                     {assignment.description && (
-                                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                                            {assignment.description}
-                                                        </Typography>
+                                                        <Box sx={{ 
+                                                            mb: 1, 
+                                                            width: '100%', 
+                                                            maxWidth: '100%', 
+                                                            overflow: 'hidden',
+                                                            overflowX: 'hidden',
+                                                            boxSizing: 'border-box'
+                                                        }}>
+                                                            <Typography 
+                                                                variant="body2" 
+                                                                color="text.secondary" 
+                                                                sx={{ 
+                                                                    width: '100%',
+                                                                    maxWidth: '100%',
+                                                                    overflow: 'hidden',
+                                                                    overflowX: 'hidden',
+                                                                    overflowY: 'hidden',
+                                                                    display: '-webkit-box',
+                                                                    WebkitLineClamp: 2,
+                                                                    WebkitBoxOrient: 'vertical',
+                                                                    textOverflow: 'ellipsis',
+                                                                    whiteSpace: 'normal',
+                                                                    wordBreak: 'break-all',
+                                                                    overflowWrap: 'anywhere',
+                                                                    wordWrap: 'break-word',
+                                                                    boxSizing: 'border-box'
+                                                                }}
+                                                            >
+                                                                {assignment.description}
+                                                            </Typography>
+                                                        </Box>
                                                     )}
                                                     <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                                                         {assignment.dueDate ? (

@@ -43,6 +43,7 @@ import {
 import { format, isValid } from 'date-fns';
 import API from '../utils/Api';
 import MaterialUpload from './MaterialUpload';
+import { toast } from 'react-toastify';
 
 // Safe date formatting function
 const formatDate = (date, formatStr) => {
@@ -210,55 +211,179 @@ const ClassworkDisplay = ({ classroomId, userRole, onContentUpdated }) => {
   };
 
   const handleDownload = async (material) => {
-    if (material.type !== 'file' || !material.content.file) return;
-    const rawUrl = material.content.file.url || '';
-    const base = API.defaults.baseURL || '';
-    const origin = (() => { try { return new URL(base).origin; } catch { return ''; } })();
-    const toAbsolute = (p) => (p.startsWith('http') ? p : `${origin}${p.startsWith('/') ? '' : '/'}${p}`);
-    const normalize = (p) => p
-      .replace(/\/api\/api\//g, '/api/')
-      .replace(/\/uploads\/uploads\//g, '/uploads/');
-
-    const path1 = normalize(rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`);
-    const fileOnly = path1.split('/').pop();
-    const candidates = [
-      toAbsolute(path1)
-    ];
-    if (path1.startsWith('/uploads/')) {
-      candidates.push(toAbsolute(`/api${path1}`));
-    }
-    if (path1.startsWith('/api/uploads/')) {
-      candidates.push(toAbsolute(path1.replace(/^\/api/, '')));
-    }
-    // Fallbacks if file remained in temp folder
-    if (fileOnly) {
-      candidates.push(toAbsolute(`/api/uploads/temp/${fileOnly}`));
-      candidates.push(toAbsolute(`/uploads/temp/${fileOnly}`));
+    if (material.type !== 'file' || !material.content.file) {
+      toast.error('File not available');
+      return;
     }
 
-    const tryDownload = async (url) => {
-      const res = await API.get(url, { responseType: 'blob' });
-      const blobUrl = window.URL.createObjectURL(res.data);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = material.content.file.filename || 'download';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    };
+    const file = material.content.file;
+    const rawUrl = file.url || '';
+    const filename = file.filename || 'download';
 
     try {
-      for (const url of candidates) {
+      const rawBase = (API?.defaults?.baseURL || 'http://localhost:5000/api');
+      const apiBase = rawBase.replace(/\/?api\/?$/, '');
+      let fileUrl = rawUrl.startsWith('http') ? rawUrl : `${apiBase}${rawUrl}`;
+
+      // Check if it's a Cloudinary URL
+      const isCloudinary = /cloudinary\.com/.test(fileUrl);
+      
+      // Use publicId if available (preferred method)
+      if (file.publicId) {
+        // First, try using the direct secure_url if available (most reliable)
+        if (file.url && file.url.startsWith('http') && /cloudinary\.com/.test(file.url)) {
+          // Check if it's a secure_url that we can use directly
+          const secureUrlMatch = file.url.match(/https:\/\/res\.cloudinary\.com\/[^\/]+\/(raw|image|video)\/upload\/v\d+\/(.+)/);
+          if (secureUrlMatch) {
+            // Use the direct secure URL - it should work for downloads
+            fileUrl = file.url;
+            console.log('Using direct Cloudinary secure_url:', fileUrl);
+          } else {
+            // Try to get signed URL from backend
+            try {
+              let format = file.format || (filename || '').split('.').pop();
+              let resourceType = file.resourceType || 'raw';
+              
+              // Clean publicId - remove any extension
+              let publicId = file.publicId.replace(/\.(pdf|zip|docx?|xlsx?|pptx?|png|jpe?g|gif|webp)$/i, '');
+              
+              // Try without format first (Cloudinary auto-detects for raw files)
+              let signedResp = await API.get(`/files/download`, {
+                params: { publicId, resource_type: resourceType, mode: 'download' }
+              });
+              
+              // If that fails, try with format
+              if (!signedResp?.data?.success && format) {
+                signedResp = await API.get(`/files/download`, {
+                  params: { publicId, resource_type: resourceType, format, mode: 'download' }
+                });
+              }
+              
+              if (signedResp?.data?.success && signedResp.data.url) {
+                fileUrl = signedResp.data.url;
+              } else {
+                // Fallback to direct URL
+                fileUrl = file.url;
+                console.warn('Signed URL failed, using direct URL as fallback');
+              }
+            } catch (e) {
+              console.warn('Backend signing failed, using direct URL:', e);
+              fileUrl = file.url;
+            }
+          }
+        } else {
+          // No direct URL, try backend signing
+          try {
+            let format = file.format || (filename || '').split('.').pop();
+            let resourceType = file.resourceType || 'raw';
+            
+            // Clean publicId - remove any extension
+            let publicId = file.publicId.replace(/\.(pdf|zip|docx?|xlsx?|pptx?|png|jpe?g|gif|webp)$/i, '');
+            
+            // Try without format first
+            let signedResp = await API.get(`/files/download`, {
+              params: { publicId, resource_type: resourceType, mode: 'download' }
+            });
+            
+            // If that fails, try with format
+            if (!signedResp?.data?.success && format) {
+              signedResp = await API.get(`/files/download`, {
+                params: { publicId, resource_type: resourceType, format, mode: 'download' }
+              });
+            }
+            
+            if (signedResp?.data?.success && signedResp.data.url) {
+              fileUrl = signedResp.data.url;
+            } else {
+              const errorMsg = signedResp?.data?.message || signedResp?.data?.error?.message || 'Failed to get signed URL';
+              console.error('Cloudinary download failed:', { 
+                publicId, 
+                originalPublicId: file.publicId,
+                format, 
+                resourceType, 
+                error: errorMsg
+              });
+              throw new Error(errorMsg);
+            }
+          } catch (e) {
+            console.error('Cloudinary URL signing failed:', e);
+            toast.error(e.message || 'Failed to download file. Please try again.');
+            return;
+          }
+        }
+      } else if (isCloudinary) {
+        // Fallback: try to extract from URL if publicId not available
         try {
-          await tryDownload(url);
-          return;
-        } catch {
-          // try next
+          // Prefer the secure_url already stored on the file
+          if (file.url && file.url.startsWith('http')) {
+            fileUrl = file.url;
+          }
+
+          let format = file.format || (filename || '').split('.').pop();
+          let resourceType = file.resourceType || (file.fileType && file.fileType.startsWith('image') ? 'image' : (file.fileType && file.fileType.startsWith('video') ? 'video' : 'raw'));
+
+          // Extract from URL when structured fields are missing
+          const typeMatch = fileUrl.match(/\/(raw|image|video)\/upload\//);
+          resourceType = typeMatch ? typeMatch[1] : resourceType || 'raw';
+          const match = fileUrl.match(/\/upload\/(?:v\d+\/)?(.+)\.(\w+)$/);
+          let publicId = match && match[1] ? match[1] : undefined;
+          format = match && match[2] ? match[2] : format;
+
+          if (publicId) {
+            // Ensure we do NOT include extension in publicId
+            publicId = publicId.replace(/\.(pdf|zip|docx?|png|jpe?g|gif|webp)$/i, '');
+            
+            // Get signed URL from backend
+            const signedResp = await API.get(`/files/download`, {
+              params: { publicId, resource_type: resourceType, format, mode: 'download' }
+            });
+            
+            if (signedResp?.data?.success && signedResp.data.url) {
+              fileUrl = signedResp.data.url;
+            } else {
+              throw new Error(signedResp?.data?.message || 'Failed to get signed URL');
+            }
+          }
+        } catch (e) {
+          console.warn('Cloudinary URL extraction/signing failed:', e);
+          // Fall through to try direct URL
         }
       }
-    } catch {
-      // No-op
+
+      // For Cloudinary or cross-origin URLs, use anchor download
+      const isCrossOrigin = !fileUrl.startsWith(apiBase);
+      if (isCloudinary || isCrossOrigin) {
+        const link = document.createElement('a');
+        link.href = fileUrl;
+        link.download = filename;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+
+      // For same-origin files, try blob download
+      try {
+        const response = await fetch(fileUrl, { method: 'GET' });
+        if (!response.ok) throw new Error(`Download failed with status ${response.status}`);
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+      } catch (error) {
+        console.warn('Blob download failed, falling back to direct URL:', error);
+        // Fallback: navigate to direct URL
+        window.open(fileUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      toast.error('Failed to download file. Please try again.');
     }
   };
 
@@ -331,6 +456,11 @@ const ClassworkDisplay = ({ classroomId, userRole, onContentUpdated }) => {
             p: 2, 
             mb: 2, 
             cursor: isAssignment ? 'pointer' : 'default',
+            width: '100%',
+            maxWidth: '100%',
+            overflow: 'hidden',
+            overflowX: 'hidden',
+            boxSizing: 'border-box',
             '&:hover': isAssignment ? { 
               boxShadow: 2,
               transform: 'translateY(-1px)',
@@ -339,12 +469,12 @@ const ClassworkDisplay = ({ classroomId, userRole, onContentUpdated }) => {
           }}
           onClick={isAssignment ? () => navigate(`/assignment/${item._id}`) : undefined}
         >
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-            <Avatar sx={{ bgcolor: getItemColor(item, item.itemType), mt: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, width: '100%', maxWidth: '100%', overflow: 'hidden', overflowX: 'hidden' }}>
+            <Avatar sx={{ bgcolor: getItemColor(item, item.itemType), mt: 0.5, flexShrink: 0 }}>
               {getItemIcon(item, item.itemType)}
             </Avatar>
             
-            <Box sx={{ flex: 1 }}>
+            <Box sx={{ flex: 1, minWidth: 0, width: '100%', maxWidth: '100%', overflow: 'hidden', overflowX: 'hidden' }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   {item.title}
@@ -365,9 +495,37 @@ const ClassworkDisplay = ({ classroomId, userRole, onContentUpdated }) => {
                 )}
               </Box>
               {!item.__isTitleOnly && (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  {item.description}
-                </Typography>
+                <Box sx={{ 
+                  mb: 2, 
+                  width: '100%', 
+                  maxWidth: '100%', 
+                  overflow: 'hidden',
+                  overflowX: 'hidden',
+                  boxSizing: 'border-box'
+                }}>
+                  <Typography 
+                    variant="body2" 
+                    color="text.secondary" 
+                    sx={{ 
+                      width: '100%',
+                      maxWidth: '100%',
+                      overflow: 'hidden',
+                      overflowX: 'hidden',
+                      overflowY: 'hidden',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'normal',
+                      wordBreak: 'break-all',
+                      overflowWrap: 'anywhere',
+                      wordWrap: 'break-word',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    {item.description}
+                  </Typography>
+                </Box>
               )}
 
               {isAssignment && (

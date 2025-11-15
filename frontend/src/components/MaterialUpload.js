@@ -267,17 +267,6 @@ const MaterialUpload = ({ open, onClose, classroomId, onMaterialCreated }) => {
 
           {mode === 'old' && (
             <>
-              <TextField
-                fullWidth
-                label="Description"
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                margin="normal"
-                multiline
-                rows={2}
-              />
-
               {/* Optional Link */}
               <TextField
                 fullWidth
