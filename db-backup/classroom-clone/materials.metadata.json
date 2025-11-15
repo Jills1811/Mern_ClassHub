@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"classroom":{"$numberInt":"1"},"category":{"$numberInt":"1"},"createdAt":{"$numberInt":"-1"}},"name":"classroom_1_category_1_createdAt_-1","background":true}],"uuid":"f2b3b97b22684a93a315a728e2e026ee","collectionName":"materials","type":"collection"}

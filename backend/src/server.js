@@ -25,8 +25,8 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/classrooms', require('./routes/classrooms'));
 app.use('/api/assignments', require('./routes/assignments'));
