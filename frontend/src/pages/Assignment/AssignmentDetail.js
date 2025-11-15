@@ -486,9 +486,11 @@ const AssignmentDetail = () => {
     <Box sx={{ 
       minHeight: '100vh',
       bgcolor: theme.palette.mode === 'light' ? 'background.default' : '#1a1a1a',
-      color: 'text.primary'
+      color: 'text.primary',
+      overflowX: 'hidden',
+      width: '100%'
     }}>
-      <Box sx={{ maxWidth: 1200, margin: '0 auto', p: 3 }}>
+      <Box sx={{ maxWidth: 1200, margin: '0 auto', p: 3, width: '100%', boxSizing: 'border-box' }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
         <IconButton onClick={() => navigate(-1)} sx={{ mr: 1 }}>
@@ -496,18 +498,18 @@ const AssignmentDetail = () => {
         </IconButton>
       </Box>
 
-      <Grid container spacing={4}>
+      <Grid container spacing={4} sx={{ width: '100%', margin: 0 }}>
         {/* Main Content - Left Side */}
-        <Grid item xs={12} md={8}>
+        <Grid item xs={12} md={8} sx={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
             {/* Assignment Header */}
           <Box sx={{ mb: 4 }}>
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                <Avatar sx={{ bgcolor: '#1976d2', width: 40, height: 40 }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3, width: '100%', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, flex: 1, minWidth: 0 }}>
+                <Avatar sx={{ bgcolor: '#1976d2', width: 40, height: 40, flexShrink: 0 }}>
                   <AssignmentIcon />
               </Avatar>
-                <Box>
-                  <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
+                <Box sx={{ minWidth: 0, flex: 1 }}>
+                  <Typography variant="h4" sx={{ fontWeight: 600, mb: 1, wordWrap: 'break-word', overflowWrap: 'break-word', wordBreak: 'break-word' }}>
                     {assignment.title}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
@@ -515,7 +517,7 @@ const AssignmentDetail = () => {
                   </Typography>
                 </Box>
               </Box>
-              <Box sx={{ textAlign: 'right' }}>
+              <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
                 {user.role === 'teacher' && (
                   <IconButton 
                     size="small" 
@@ -525,7 +527,7 @@ const AssignmentDetail = () => {
                     <MoreVertIcon />
                   </IconButton>
                 )}
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
                   {assignment.dueDate ? `Due ${formatDate(assignment.dueDate, 'MMM d')}` : 'No due date'}
                 </Typography>
               </Box>
@@ -533,7 +535,23 @@ const AssignmentDetail = () => {
 
             {/* Assignment Description */}
             {assignment.description && (
-              <Typography variant="body1" sx={{ lineHeight: 1.6, mb: 4, fontSize: '1rem' }}>
+              <Typography 
+                variant="body1" 
+                sx={{ 
+                  lineHeight: 1.6, 
+                  mb: 4, 
+                  fontSize: '1rem',
+                  wordWrap: 'break-word',
+                  overflowWrap: 'break-word',
+                  wordBreak: 'break-word',
+                  maxWidth: '100%',
+                  overflow: 'hidden',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical',
+                  textOverflow: 'ellipsis'
+                }}
+              >
                 {assignment.description}
               </Typography>
             )}
@@ -611,30 +629,38 @@ const AssignmentDetail = () => {
               </Link>
               
               {comments.length > 0 && (
-                <List sx={{ mt: 2 }}>
+                <Box sx={{ mt: 2 }}>
                   {comments.map((comment, index) => (
-                    <ListItem key={index} sx={{ px: 0 }}>
-                      <ListItemAvatar>
-                        <Avatar sx={{ bgcolor: '#1976d2', width: 32, height: 32 }}>
-                          <PersonIcon />
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={comment.author?.name || 'Anonymous'}
-                        secondary={
-                          <Box component="span">
-                            <Typography component="span" variant="body2" color="text.secondary">
-                              {comment.text}
+                    <Box 
+                      key={index} 
+                      sx={{ 
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 2,
+                        mb: index < comments.length - 1 ? 2.5 : 0,
+                        border: 'none',
+                        borderBottom: 'none',
+                        '&::before': { display: 'none' },
+                        '&::after': { display: 'none' }
+                      }}
+                    >
+                      <Avatar sx={{ bgcolor: '#1976d2', width: 32, height: 32, flexShrink: 0 }}>
+                        <PersonIcon />
+                      </Avatar>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                          {comment.author?.name || 'Anonymous'}
                         </Typography>
-                            <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                              {formatDate(comment.createdAt, 'MMM d, yyyy h:mm a')}
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
+                          {comment.text?.trim().replace(/_/g, '') || ''}
                         </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {formatDate(comment.createdAt, 'MMM d, yyyy h:mm a')}
+                        </Typography>
+                      </Box>
                     </Box>
-                        }
-                      />
-                    </ListItem>
                   ))}
-                </List>
+                </Box>
               )}
                       </Box>
                     </Box>
